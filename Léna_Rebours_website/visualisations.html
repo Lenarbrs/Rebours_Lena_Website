@@ -5,31 +5,31 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Visualisations — Cultural Reco</title>
 
-    <!-- Using the same global fonts as the other pages for consistency -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
-    <!-- Shared stylesheet that gives the dark/glassy theme -->
     <link rel="stylesheet" href="styles.css" />
-    <!-- Handwritten-style heading font to keep the same brand vibe -->
-    <link
-      href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap"
-      rel="stylesheet"
-    />
   </head>
-  <!-- I mark this page as 'viz' so CSS can adjust the hero/title colors -->
   <body data-page="viz">
     <header class="site-header">
       <div class="container nav">
-        <!-- Brand link that always takes me back to the home page -->
         <a class="brand" href="index.html">
           <span class="brand-icon" aria-hidden="true">🌍</span>
-          Cultural Reco
+          <span class="brand-text">Cultural Reco</span>
         </a>
-        <!-- Main navigation for the site -->
+
+        <button
+          class="nav-toggle"
+          type="button"
+          aria-label="Toggle navigation"
+          aria-expanded="false"
+        >
+          ☰
+        </button>
+
         <nav id="menu" class="menu" aria-label="Main">
           <a href="index.html">Cultural Recommendation</a>
           <a href="about.html">About the project</a>
@@ -38,33 +38,25 @@
       </div>
     </header>
 
-    <!-- Smaller hero since this page is about data displays rather than "marketing" -->
-    <section class="hero small">
+    <section class="hero hero--small">
       <div class="container hero-inner">
+        <p class="eyebrow">Data & insights</p>
         <h1>Visualisations</h1>
-        <p>Explore data and insights about cultural content across languages</p>
+        <p>Explore cultural content distributions across languages.</p>
       </div>
-      <!-- Decorative floating elements -->
-      <div class="deco-elem deco-1" aria-hidden="true"></div>
-      <div class="deco-elem deco-2" aria-hidden="true"></div>
     </section>
 
     <main class="section">
       <div class="container">
         <div class="form-section">
-          <!-- Temporary note so users know this page is a placeholder -->
           <p class="muted">
-            Not finished because I do not have the data yet but soon there will
-            be visualisations (I hope)
+            This page is a placeholder. Once a dataset or API is available,
+            visualisations will appear here to show patterns across languages,
+            genres and formats.
           </p>
-          <!-- Visual placeholder to show where charts/graphs will go later.
-               I’ll replace this with real components (e.g., D3/Recharts) when
-               I have an API or a dataset available. -->
-          <div
-            class="viz placeholder"
-            style="display: flex; align-items: center; justify-content: center"
-          >
-            <em>Empty area for future visualisations</em>
+
+          <div class="viz placeholder">
+            <em>Reserved area for future visualisations</em>
           </div>
         </div>
       </div>
@@ -72,13 +64,10 @@
 
     <footer class="site-footer">
       <div class="container">
-        <!-- Simple footer for now; I might add links/credits later -->
-        <p>Cultural Recommendation</p>
+        <p>Cultural Recommendation — prototype</p>
       </div>
     </footer>
 
-    <!-- Reusing the same JS (handles menu toggle + reveal on scroll).
-         When I add charts, I’ll include the chart library scripts here too. -->
     <script src="app.js" defer></script>
   </body>
 </html>

@@ -5,33 +5,33 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Cultural Recommendation</title>
 
-    <!-- Fonts I picked: a classy serif + a clean sans to match the cultural theme -->
+    <!-- Clean, modern typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap"
-      rel="stylesheet"
-    />
-    <!-- A handwriting-style font for branding/titles to feel more “human” -->
-    <link
-      href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
 
-    <!-- My main stylesheet that gives the whole site its dark/glassy look -->
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <!-- I tag the body with a page id so CSS can tweak styles per page -->
   <body data-page="recommendation">
     <header class="site-header">
       <div class="container nav">
-        <!-- Brand with a tiny globe icon; clicking goes back to home -->
         <a class="brand" href="index.html">
           <span class="brand-icon" aria-hidden="true">🌍</span>
-          Cultural Reco
+          <span class="brand-text">Cultural Reco</span>
         </a>
 
-        <!-- Main navigation -->
+        <button
+          class="nav-toggle"
+          type="button"
+          aria-label="Toggle navigation"
+          aria-expanded="false"
+        >
+          ☰
+        </button>
+
         <nav id="menu" class="menu" aria-label="Main">
           <a class="is-active" href="index.html">Cultural Recommendation</a>
           <a href="about.html">About the project</a>
@@ -40,39 +40,69 @@
       </div>
     </header>
 
-    <!-- Hero section: big headline + two buttons for primary actions -->
     <section class="hero">
       <div class="container hero-inner">
-        <h1>
-          Learn your favorite language through personalized cultural content!
-        </h1>
-        <p>
-          Pick a <strong>target language</strong> and a content type. Then the
-          algorithm will suggest a list of cultural content
-        </p>
-        <div class="hero-actions">
-          <!-- Anchor that scrolls down to the interactive demo form -->
-          <a class="button" href="#prototype">Try it</a>
-          <!-- Secondary button to read about the MVP approach -->
-          <a class="button ghost" href="about.html">See the MVP</a>
+        <div class="hero-copy">
+          <p class="eyebrow">Language learning through culture</p>
+          <h1>
+            Learn your favorite language through personalized cultural content.
+          </h1>
+          <p>
+            Pick a <strong>target language</strong> and a content type. The
+            prototype will suggest cultural content once a data source is
+            connected.
+          </p>
+          <div class="hero-actions">
+            <a class="button" href="#prototype">Try the demo</a>
+            <a class="button ghost" href="about.html">Learn more</a>
+          </div>
         </div>
+
+        <!-- Mini “gallery” pour rendre le hero plus vivant -->
+        <aside class="hero-gallery" aria-label="Examples of cultural content">
+          <div class="hero-gallery-item">
+            <div class="hero-gallery-thumb">
+              <span aria-hidden="true">🎧</span>
+            </div>
+            <div class="hero-gallery-text">
+              <p class="hero-gallery-label">Music · Playlists</p>
+              <p class="hero-gallery-desc">
+                Discover indie artists in Spanish.
+              </p>
+            </div>
+          </div>
+
+          <div class="hero-gallery-item">
+            <div class="hero-gallery-thumb hero-gallery-thumb--two">
+              <span aria-hidden="true">🎬</span>
+            </div>
+            <div class="hero-gallery-text">
+              <p class="hero-gallery-label">Film & series</p>
+              <p class="hero-gallery-desc">For a japanese movie night.</p>
+            </div>
+          </div>
+
+          <div class="hero-gallery-item">
+            <div class="hero-gallery-thumb hero-gallery-thumb--three">
+              <span aria-hidden="true">📺</span>
+            </div>
+            <div class="hero-gallery-text">
+              <p class="hero-gallery-label">Short videos</p>
+              <p class="hero-gallery-desc">
+                Bite-sized Japanese clips tailored to your tastes.
+              </p>
+            </div>
+          </div>
+        </aside>
       </div>
-      <!-- Decorative floating elements -->
-      <div class="deco-elem deco-1" aria-hidden="true"></div>
-      <div class="deco-elem deco-2" aria-hidden="true"></div>
-      <div class="deco-elem deco-3" aria-hidden="true"></div>
-      <div class="deco-elem deco-4" aria-hidden="true"></div>
     </section>
 
-    <!-- Demo prototype (for now it’s just frontend) -->
     <main id="prototype" class="section">
       <div class="container">
         <h2 class="section-title">Cultural Recommendation (demo)</h2>
 
-        <!-- Filter form where the user tells the system what they want -->
         <form class="form-section" id="form-filters" novalidate>
           <div class="fields">
-            <!-- Target language selector -->
             <label>
               <span>Target language</span>
               <select name="lang">
@@ -83,7 +113,7 @@
                 <option value="ja">Japanese</option>
               </select>
             </label>
-            <!-- Content type selector (music / film / short videos) -->
+
             <label>
               <span>Content type</span>
               <select name="type">
@@ -92,7 +122,7 @@
                 <option value="video">Video</option>
               </select>
             </label>
-            <!-- Free-text genres -->
+
             <label class="full">
               <span>Preferred genres (comma-separated)</span>
               <input
@@ -102,9 +132,9 @@
               />
             </label>
           </div>
+
           <div class="actions">
             <button class="button" type="submit">Generate</button>
-            <!-- Live status area -->
             <p
               class="form-note"
               id="note-filters"
@@ -114,19 +144,16 @@
           </div>
         </form>
 
-        <!-- JS will inject the results list here (see app.js) -->
         <div id="results-filters" class="results" aria-live="polite"></div>
       </div>
     </main>
 
     <footer class="site-footer">
       <div class="container">
-        <!-- Just a simple footer for now -->
-        <p>Cultural Recommendation</p>
+        <p>Cultural Recommendation — prototype</p>
       </div>
     </footer>
 
-    <!-- My frontend script (handles smooth scroll, menu toggle, and the demo logic) -->
     <script src="app.js" defer></script>
   </body>
 </html>
