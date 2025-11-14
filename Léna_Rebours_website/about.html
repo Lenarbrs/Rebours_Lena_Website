@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>About the project — Cultural Reco</title>
+
+    <!-- I’m using Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Main stylesheet shared across all pages -->
+    <link rel="stylesheet" href="styles.css" />
+    <!-- Handwritten-style font for headings/brand so it feels more “human” -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <!-- I tag the page so CSS can slightly tweak the hero styling on “about” -->
+  <body data-page="about">
+    <header class="site-header">
+      <div class="container nav">
+        <!-- Brand: clicking it takes me back to the home page -->
+        <a class="brand" href="index.html">
+          <span class="brand-icon" aria-hidden="true">🌍</span>
+          Cultural Reco
+        </a>
+        <!-- Main site navigation -->
+        <nav id="menu" class="menu" aria-label="Main">
+          <a href="index.html">Cultural Recommendation</a>
+          <a class="is-active" href="about.html">About the project</a>
+          <a href="visualisations.html">Visualisations</a>
+        </nav>
+      </div>
+    </header>
+
+    <!-- Smaller hero on this page because it’s more informational -->
+    <section class="hero small">
+      <div class="container hero-inner">
+        <h1>About the project</h1>
+        <p>
+          A lightweight recommendation prototype for cultural content in a
+          target language.
+        </p>
+      </div>
+      <!-- Decorative floating icons -->
+      <div class="deco-elem deco-1" aria-hidden="true"></div>
+      <div class="deco-elem deco-2" aria-hidden="true"></div>
+    </section>
+
+    <main class="section">
+      <div class="container">
+        <h2 class="section-title">Goal & MVP</h2>
+
+        <!-- Three cards: goal, MVP scope, and how users can provide inputs -->
+        <div class="grid cards">
+          <article class="card">
+            <div class="card-body">
+              <h3>Goal</h3>
+              <p class="muted">
+                Suggest music, films/series, and videos aligned with the
+                learner's preferences in their target language.
+              </p>
+            </div>
+          </article>
+          <article class="card">
+            <div class="card-body">
+              <h3>MVP scope</h3>
+              <p>
+                Start with one content type (e.g., films) and one target
+                language. Use genre similarity + popularity to retrieve a
+                <strong>Top-5</strong>.
+              </p>
+              <!-- I’m intentionally keeping the MVP small because i do not know how I'll present it yet -->
+            </div>
+          </article>
+          <article class="card">
+            <div class="card-body">
+              <h3>Two input modes</h3>
+              <ul class="list">
+                <li>
+                  <span class="badge">Filters</span> quick, declarative
+                  preferences.
+                  <!-- users pick a language/type/genres. -->
+                </li>
+                <li>
+                  <span class="badge">History</span> optional upload for finer
+                  personalisation.
+                  <!-- Later I can use watch/listen history (if provided) to
+                       improve personalization beyond simple genre matches. -->
+                </li>
+              </ul>
+            </div>
+          </article>
+        </div>
+
+        <!-- Just a visual separator to end the section -->
+        <div class="divider" role="presentation"></div>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <!-- Lightweight footer for now; I might add links or credits later -->
+        <p>Cultural Recommendation</p>
+      </div>
+    </footer>
+
+    <!-- I load D3 only for small demo visuals (future enhancement idea) -->
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <!-- Shared script: handles nav toggle, animations, and (on home) the demo form -->
+    <script src="app.js" defer></script>
+  </body>
+</html>
