@@ -1,0 +1,303 @@
+<!-- templates/about.html -->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>About CinéLingua — Cultural Film Recommendation</title>
+    <meta
+      name="description"
+      content="Discover the story behind CinéLingua: a personalized film recommendation system for language learning and cultural discovery."
+    />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Space+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='styles.css') }}"
+    />
+  </head>
+
+  <body>
+    <div class="grain" aria-hidden="true"></div>
+
+    <header class="masthead">
+      <div class="brand">
+        <img
+          class="brand__logo"
+          src="{{ url_for('static', filename='movie-icone-ticket-removebg.png') }}"
+          alt="Cinema ticket icon"
+        />
+        <div class="brand__text">
+          <h1 class="brand__title">CinéLingua</h1>
+          <p class="brand__tagline">
+            The ticket booth that recommends movies in the language you're
+            learning.
+          </p>
+        </div>
+      </div>
+
+      <div class="masthead__actions">
+        <a href="/" class="btn btn--ghost">← Back to App</a>
+        <button
+          id="themeBtn"
+          class="btn btn--ghost"
+          type="button"
+          aria-pressed="false"
+          title="Switch theme"
+        >
+          🌙 Dark Mode
+        </button>
+      </div>
+    </header>
+
+    <main class="stage-vertical">
+      <!-- Hero Section -->
+      <section class="booth-vertical">
+        <div class="panel panel--velvet">
+          <div class="panel__head">
+            <h2 class="panel__title">🎬 About CinéLingua</h2>
+            <p class="panel__sub">
+              Bridging language learning and cultural discovery through
+              personalized film recommendations
+            </p>
+          </div>
+          <div class="form" style="padding: 2rem">
+            <div class="field">
+              <h3 style="margin-bottom: 1rem; color: var(--gold)">
+                The Project Vision
+              </h3>
+              <p style="margin-bottom: 1.5rem; line-height: 1.7">
+                CinéLingua is a cultural recommendation system designed to help
+                language learners discover films that match both their cinematic
+                tastes and their linguistic goals. By combining movie metadata
+                with linguistic annotations, we create a bridge between
+                entertainment and education.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Motivation Section -->
+      <section class="booth-vertical">
+        <div class="panel panel--paper">
+          <div class="panel__head">
+            <h3 class="panel__title">💡 Why This Matters</h3>
+          </div>
+          <div class="form" style="padding: 2rem">
+            <div class="grid">
+              <div class="field">
+                <h4 style="margin-bottom: 0.75rem; color: var(--velvet)">
+                  The Language Learning Gap
+                </h4>
+                <p style="line-height: 1.6">
+                  As a language learner and French conversation assistant at the
+                  University of Chicago, I noticed that students make the most
+                  progress when they can immerse themselves in content they
+                  genuinely enjoy. Yet finding quality films in target languages
+                  that match personal tastes remains challenging.
+                </p>
+              </div>
+              <div class="field">
+                <h4 style="margin-bottom: 0.75rem; color: var(--velvet)">
+                  Beyond Mainstream Algorithms
+                </h4>
+                <p style="line-height: 1.6">
+                  Major platforms like Netflix and Spotify often reinforce
+                  existing viewing habits rather than encouraging cultural
+                  exploration. Language apps provide generic content without
+                  personalization. CinéLingua fills this gap by offering
+                  culturally diverse, personalized recommendations.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- How It Works -->
+      <section class="booth-vertical">
+        <div class="panel panel--paper">
+          <div class="panel__head">
+            <h3 class="panel__title">🔧 How CinéLingua Works</h3>
+            <p class="panel__sub">
+              A technical and pedagogical approach to film recommendation
+            </p>
+          </div>
+          <div class="form" style="padding: 2rem">
+            <div class="grid">
+              <div class="field">
+                <div class="badge" style="margin-bottom: 1rem">Step 1</div>
+                <h4 style="margin-bottom: 0.75rem">Data Collection</h4>
+                <ul style="padding-left: 1.5rem; line-height: 1.6">
+                  <li>Film metadata from TMDB</li>
+                  <li>Linguistic annotations by language educators</li>
+                  <li>Genre, runtime, rating, and popularity data</li>
+                </ul>
+              </div>
+              <div class="field">
+                <div class="badge" style="margin-bottom: 1rem">Step 2</div>
+                <h4 style="margin-bottom: 0.75rem">Personalized Filtering</h4>
+                <ul style="padding-left: 1.5rem; line-height: 1.6">
+                  <li>Select target language</li>
+                  <li>Choose preferred genres</li>
+                  <li>Set rating and duration preferences</li>
+                  <li>Adjust linguistic difficulty level</li>
+                </ul>
+              </div>
+              <div class="field">
+                <div class="badge" style="margin-bottom: 1rem">Step 3</div>
+                <h4 style="margin-bottom: 0.75rem">Smart Matching</h4>
+                <ul style="padding-left: 1.5rem; line-height: 1.6">
+                  <li>Algorithm matches films to criteria</li>
+                  <li>Sorts by popularity and relevance</li>
+                  <li>Considers linguistic accessibility</li>
+                  <li>Returns personalized "ticket" of recommendations</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Features -->
+      <section class="booth-vertical">
+        <div class="panel panel--velvet">
+          <div class="panel__head">
+            <h3 class="panel__title">✨ Key Features</h3>
+          </div>
+          <div class="form" style="padding: 2rem">
+            <div class="grid">
+              <div class="field">
+                <img
+                  src="{{ url_for('static', filename='langues.png') }}"
+                  alt="Languages"
+                  style="width: 48px; height: auto; margin-bottom: 1rem"
+                />
+                <h4 style="margin-bottom: 0.75rem">Personalized Discovery</h4>
+                <p style="line-height: 1.6">
+                  Find films that match your specific taste in genres, from
+                  specific countries and linguistic registers.
+                </p>
+              </div>
+
+              <div class="field">
+                <img
+                  src="{{ url_for('static', filename='niveau.png') }}"
+                  alt="Cinema"
+                  style="width: 48px; height: auto; margin-bottom: 1rem"
+                />
+                <h4 style="margin-bottom: 0.75rem">Pedagogical Annotations</h4>
+                <p style="line-height: 1.6">
+                  Each film includes linguistic level indicators (beginner to
+                  advanced) and register information (formal, casual, etc.).
+                </p>
+              </div>
+
+              <div class="field">
+                <img
+                  src="{{ url_for('static', filename='favoris.png') }}"
+                  alt="Bookmark"
+                  style="width: 48px; height: auto; margin-bottom: 1rem"
+                />
+                <h4 style="margin-bottom: 0.75rem">Save & Organize</h4>
+                <p style="line-height: 1.6">
+                  Build your personal collection of favorite films for future
+                  viewing or language study sessions.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Call to Action -->
+      <section class="booth-vertical">
+        <div class="panel panel--velvet">
+          <div class="panel__head">
+            <h3 class="panel__title">🚀 Start Your Journey</h3>
+            <p class="panel__sub">
+              Experience personalized cultural discovery today
+            </p>
+          </div>
+          <div
+            class="form"
+            style="
+              padding: 2rem;
+              text-align: center;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+            "
+          >
+            <p style="margin-bottom: 2rem; max-width: 600px; line-height: 1.7">
+              Whether you're a language student looking for accessible content,
+              a film enthusiast exploring world cinema, or an educator seeking
+              authentic materials, CinéLingua offers a unique bridge between
+              entertainment and language acquisition.
+            </p>
+            <div class="actions">
+              <a href="/" class="btn btn--primary" style="padding: 1rem 2rem">
+                🎟️ Launch CinéLingua
+              </a>
+            </div>
+            <p
+              style="
+                margin-top: 2rem;
+                font-size: 0.9rem;
+                color: rgba(255, 255, 255, 0.8);
+                max-width: 500px;
+              "
+            >
+              Project by Léna Rebours • University PSL
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Theme Script -->
+    <script>
+      // Minimal theme switching for the about page
+      const STORAGE_THEME = "cinelingua.theme";
+
+      function initTheme() {
+        const saved = localStorage.getItem(STORAGE_THEME) || "dark";
+        setTheme(saved);
+      }
+
+      function toggleTheme() {
+        const cur =
+          document.documentElement.getAttribute("data-theme") || "dark";
+        setTheme(cur === "dark" ? "light" : "dark");
+      }
+
+      function setTheme(t) {
+        document.documentElement.setAttribute("data-theme", t);
+        localStorage.setItem(STORAGE_THEME, t);
+        const btn = document.getElementById("themeBtn");
+        if (btn) {
+          btn.setAttribute("aria-pressed", t === "light" ? "true" : "false");
+          btn.innerHTML = t === "dark" ? "🌙 Dark Mode" : "☀️ Light Mode";
+          btn.title =
+            t === "dark" ? "Switch to light mode" : "Switch to dark mode";
+        }
+      }
+
+      // Initialize
+      document.addEventListener("DOMContentLoaded", () => {
+        initTheme();
+        const themeBtn = document.getElementById("themeBtn");
+        if (themeBtn) {
+          themeBtn.addEventListener("click", toggleTheme);
+        }
+      });
+    </script>
+  </body>
+</html>

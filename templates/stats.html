@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>CinéLingua — Dataset Stats</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Space+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='styles.css') }}"
+    />
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  </head>
+
+  <body>
+    <div class="grain" aria-hidden="true"></div>
+
+    <header class="masthead">
+      <div class="brand">
+        <img
+          class="brand__logo"
+          src="{{ url_for('static', filename='movie-icone-ticket-removebg.png') }}"
+          alt="Cinema ticket icon"
+        />
+        <div class="brand__text">
+          <h1 class="brand__title">CinéLingua</h1>
+          <p class="brand__tagline">Dataset statistics and distributions</p>
+        </div>
+      </div>
+
+      <div class="masthead__actions">
+        <a class="btn btn--ghost" href="{{ url_for('home') }}">← Back</a>
+        <button
+          id="themeBtn"
+          class="btn btn--ghost"
+          type="button"
+          aria-pressed="false"
+        >
+          🌙 Dark Mode
+        </button>
+      </div>
+    </header>
+
+    <main class="stage-vertical">
+      <section class="booth-vertical">
+        <div class="panel panel--paper">
+          <div class="panel__head panel__head--row">
+            <div>
+              <h2 class="panel__title">Dataset Overview</h2>
+              <p class="panel__sub">
+                Quick view of distributions: languages, levels, genres, years
+              </p>
+            </div>
+
+            <div class="mini-actions">
+              <span class="pill" id="totalMovies">0</span>
+            </div>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stats-card">
+              <div class="stats-card__head">
+                <h3 class="stats-card__title">Top languages</h3>
+                <p class="stats-card__sub">Most frequent original languages</p>
+              </div>
+              <div class="stats-card__body">
+                <canvas id="chartLanguages"></canvas>
+              </div>
+            </div>
+
+            <div class="stats-card">
+              <div class="stats-card__head">
+                <h3 class="stats-card__title">Linguistic level</h3>
+                <p class="stats-card__sub">Beginner → advanced distribution</p>
+              </div>
+              <div class="stats-card__body">
+                <canvas id="chartLevels"></canvas>
+              </div>
+            </div>
+
+            <div class="stats-card">
+              <div class="stats-card__head">
+                <h3 class="stats-card__title">Top genres</h3>
+                <p class="stats-card__sub">
+                  Chronological distribution of films by year
+                </p>
+              </div>
+              <div class="stats-card__body">
+                <canvas id="chartGenres"></canvas>
+              </div>
+            </div>
+
+            <div class="stats-card">
+              <div class="stats-card__head">
+                <h3 class="stats-card__title">Release years</h3>
+                <p class="stats-card__sub">Most common release years</p>
+              </div>
+              <div class="stats-card__body">
+                <canvas id="chartYears"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div id="statsEmpty" class="empty" hidden>
+            <div class="empty__content">
+              <h3>📉 No data to display</h3>
+              <p>The dataset is empty or could not be loaded.</p>
+              <ul>
+                <li>Check your CSV path</li>
+                <li>Restart the Flask server</li>
+                <li>Verify required columns exist</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='stats.js') }}"></script>
+  </body>
+</html>

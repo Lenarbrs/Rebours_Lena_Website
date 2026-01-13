@@ -1,0 +1,259 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>CinéLingua — Cultural Film Recommendation</title>
+    <meta
+      name="description"
+      content="Choose a language, genres, rating and duration: get your personalized movie recommendations ticket."
+    />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Space+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='styles.css') }}"
+    />
+  </head>
+
+  <body>
+    <div class="grain" aria-hidden="true"></div>
+
+    <header class="masthead">
+      <div class="brand">
+        <img
+          class="brand__logo"
+          src="{{ url_for('static', filename='movie-icone-ticket-removebg.png') }}"
+          alt="Cinema ticket icon"
+        />
+        <div class="brand__text">
+          <h1 class="brand__title">CinéLingua</h1>
+          <p class="brand__tagline">
+            The ticket booth that recommends movies in the language you're
+            learning.
+          </p>
+        </div>
+      </div>
+
+      <div class="masthead__actions">
+        <a href="/about" class="btn btn--ghost">About</a>
+        <a class="btn btn--ghost" href="{{ url_for('stats_page') }}"
+          >📊 Stats</a
+        >
+
+        <button
+          id="themeBtn"
+          class="btn btn--ghost"
+          type="button"
+          aria-pressed="false"
+          title="Switch theme"
+        >
+          🌙 Dark Mode
+        </button>
+        <button
+          id="openFavBtn"
+          class="btn btn--ghost"
+          type="button"
+          title="View favorites"
+        >
+          ♥ Favorites <span id="favCount" class="pill">0</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="stage-vertical">
+      <section class="booth-vertical">
+        <div class="panel panel--paper">
+          <div class="panel__head">
+            <h2 class="panel__title">🎟️ The Ticket Booth</h2>
+            <p class="panel__sub">
+              Customize your cinematic journey and print personalized movie
+              recommendations
+            </p>
+          </div>
+
+          <form id="filters" class="form">
+            <div class="field">
+              <label class="label" for="langSelect"
+                >1) Language (required)</label
+              >
+              <select id="langSelect" class="control">
+                <option value="">— Choose a language —</option>
+              </select>
+              <div id="langInfo" class="hint">
+                Choose a language to see available genres.
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="label" for="genreInput">2) Genres (optional)</label>
+
+              <div class="tagbox" id="tagbox">
+                <div
+                  id="tagList"
+                  class="tagbox__tags"
+                  aria-label="Selected genres"
+                ></div>
+                <input
+                  id="genreInput"
+                  class="tagbox__input"
+                  placeholder="Type a genre then Enter (ex: drama, comedy)"
+                />
+              </div>
+
+              <div class="hint">Available genres (for chosen language):</div>
+              <div
+                id="genreSuggestions"
+                class="suggestions"
+                aria-label="Genre suggestions"
+              ></div>
+            </div>
+
+            <div class="grid">
+              <div class="field">
+                <label class="label" for="minRating">Minimum rating /10</label>
+                <input
+                  id="minRating"
+                  class="control"
+                  inputmode="decimal"
+                  placeholder="ex: 6.5"
+                />
+              </div>
+
+              <div class="field">
+                <label class="label" for="maxRuntime">Max duration (min)</label>
+                <input
+                  id="maxRuntime"
+                  class="control"
+                  inputmode="numeric"
+                  placeholder="ex: 120"
+                />
+              </div>
+
+              <div class="field">
+                <label class="label" for="linguisticLevel"
+                  >Linguistic level</label
+                >
+                <select id="linguisticLevel" class="control">
+                  <option value="">Any level</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label class="label" for="topN">Number of films</label>
+                <input
+                  id="topN"
+                  class="control"
+                  type="number"
+                  min="1"
+                  max="100"
+                  value="20"
+                />
+              </div>
+            </div>
+
+            <div class="actions">
+              <button id="resetBtn" class="btn btn--ghost" type="button">
+                Clear All
+              </button>
+              <button id="printBtn" class="btn btn--primary" type="submit">
+                🖨️ Print My Ticket
+              </button>
+            </div>
+
+            <!-- Booth console supprimée -->
+          </form>
+        </div>
+      </section>
+
+      <section class="screen-vertical">
+        <div class="panel panel--velvet">
+          <div class="panel__head panel__head--row">
+            <div>
+              <h2 class="panel__title">📽️ The Cinema Screen</h2>
+              <p id="resultsMeta" class="panel__sub">
+                Your personalized film recommendations will appear here
+              </p>
+            </div>
+
+            <div class="mini-actions">
+              <button id="shuffleBtn" class="btn btn--ghost" type="button">
+                🎲 Surprise Me
+              </button>
+            </div>
+          </div>
+
+          <div id="activeChips" class="chips" aria-label="Active filters"></div>
+
+          <div class="ticket-slot">
+            <div id="ticketPrinter" class="printer" aria-hidden="true"></div>
+            <div id="cards" class="cards" aria-live="polite"></div>
+
+            <div id="emptyState" class="empty" hidden>
+              <div class="empty__content">
+                <h3>🎬 The Screen Is Empty</h3>
+                <p>No movies match your current criteria. Try:</p>
+                <ul>
+                  <li>Select a different language</li>
+                  <li>Remove some genre filters</li>
+                  <li>Lower the minimum rating</li>
+                  <li>Increase the maximum duration</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="movieDialog" class="dialog">
+      <form method="dialog" class="dialog__inner">
+        <button class="dialog__close" aria-label="Close">✕</button>
+
+        <div class="dialog__content">
+          <div class="poster" aria-hidden="true"></div>
+
+          <div class="dialog__text">
+            <h3 id="dialogTitle" class="dialog__title"></h3>
+            <p id="dialogSub" class="dialog__sub"></p>
+            <p id="dialogOverview" class="dialog__overview"></p>
+            <div id="dialogMeta" class="badges"></div>
+
+            <div class="dialog__actions">
+              <button id="dialogFavBtn" class="btn btn--ghost" type="button">
+                ♥ Favorite
+              </button>
+              <button class="btn btn--primary" value="close">Close</button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </dialog>
+
+    <aside id="favDrawer" class="drawer" aria-hidden="true">
+      <div class="drawer__head">
+        <h2 class="drawer__title">♥ My Favorites</h2>
+        <button id="closeFavBtn" class="btn btn--ghost" type="button">
+          Close
+        </button>
+      </div>
+
+      <div id="favList" class="fav"></div>
+
+      <div class="drawer__foot">
+        <button id="clearFavBtn" class="btn btn--ghost" type="button">
+          Clear All
+        </button>
+      </div>
+    </aside>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+  </body>
+</html>
