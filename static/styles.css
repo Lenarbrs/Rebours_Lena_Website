@@ -1527,3 +1527,145 @@ html {
 [data-theme="dark"] #favDrawer .btn--ghost:hover {
   background: rgba(0, 0, 0, 0.35);
 }
+
+/* =========================
+   Booth Picks + Sort UI
+   ========================= */
+
+.mini-actions--row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* mini select in velvet header */
+.control--mini {
+  padding: 0.55rem 0.85rem;
+  border-radius: 10px;
+  font-size: 0.92rem;
+  max-width: 210px;
+}
+
+/* Booth picks section */
+.booth-picks {
+  margin-top: 1.2rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--stroke);
+}
+
+.booth-picks__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.booth-picks__title {
+  margin: 0 0 0.25rem;
+  font-family: var(--fantasy);
+  font-weight: 900;
+  font-size: 1.15rem;
+  color: var(--ink);
+}
+
+.booth-picks__sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.picks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.85rem;
+}
+
+.pick-card {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 14px;
+  border: 1px solid var(--stroke);
+  background: linear-gradient(160deg, var(--paper), var(--paper2));
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+}
+
+[data-theme="dark"] .pick-card {
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.35);
+}
+
+.pick-poster {
+  width: 74px;
+  height: 110px;
+  object-fit: contain;
+  border-radius: 10px;
+  border: 1px solid var(--stroke);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="dark"] .pick-poster {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.pick-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.pick-title {
+  font-family: var(--fantasy);
+  font-weight: 900;
+  line-height: 1.2;
+  font-size: 1rem;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-theme="dark"] .pick-title {
+  color: var(--gold);
+}
+
+.pick-sub {
+  font-family: var(--mono);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.pick-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: auto;
+}
+
+.iconbtn--sm {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  font-size: 1rem;
+}
+
+.btn--sm {
+  padding: 0.52rem 0.85rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
+
+/* make mini select readable in velvet header */
+[data-theme="dark"] .panel--velvet .control--mini {
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--gold);
+  border-color: rgba(212, 175, 55, 0.28);
+}
+
+[data-theme="dark"] .panel--velvet .control--mini option {
+  background: #151110;
+  color: #f6f0de;
+}

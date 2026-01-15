@@ -62,6 +62,7 @@
         >
           🌙 Dark Mode
         </button>
+
         <button
           id="openFavBtn"
           class="btn btn--ghost"
@@ -79,8 +80,8 @@
           <div class="panel__head">
             <h2 class="panel__title">🎟️ The Ticket Booth</h2>
             <p class="panel__sub">
-              Customize your cinematic journey and print personalized movie
-              recommendations
+              Pick favorites (for personalization), set filters, then print your
+              ticket.
             </p>
           </div>
 
@@ -93,7 +94,7 @@
                 <option value="">— Choose a language —</option>
               </select>
               <div id="langInfo" class="hint">
-                Choose a language to see available genres.
+                Choose a language to see available genres and booth picks.
               </div>
             </div>
 
@@ -158,6 +159,27 @@
                   value="20"
                 />
               </div>
+
+              <!-- ✅ optional year filter -->
+              <div class="field">
+                <label class="label" for="yearMin">Year min (optional)</label>
+                <input
+                  id="yearMin"
+                  class="control"
+                  inputmode="numeric"
+                  placeholder="ex: 1990"
+                />
+              </div>
+
+              <div class="field">
+                <label class="label" for="yearMax">Year max (optional)</label>
+                <input
+                  id="yearMax"
+                  class="control"
+                  inputmode="numeric"
+                  placeholder="ex: 2020"
+                />
+              </div>
             </div>
 
             <div class="actions">
@@ -169,7 +191,31 @@
               </button>
             </div>
 
-            <!-- Booth console supprimée -->
+            <!-- ✅ Booth picks -->
+            <div class="booth-picks">
+              <div class="booth-picks__head">
+                <div>
+                  <h3 class="booth-picks__title">⭐ Booth Picks</h3>
+                  <p class="booth-picks__sub">
+                    Add some favorites here — it trains your “Best for you”
+                    sorting.
+                  </p>
+                </div>
+                <button
+                  id="refreshPicksBtn"
+                  class="btn btn--ghost"
+                  type="button"
+                >
+                  ↻ Refresh
+                </button>
+              </div>
+
+              <div id="boothPicks" class="picks-grid" aria-live="polite"></div>
+
+              <div class="hint" id="boothPicksHint">
+                Select a language to load picks.
+              </div>
+            </div>
           </form>
         </div>
       </section>
@@ -184,7 +230,19 @@
               </p>
             </div>
 
-            <div class="mini-actions">
+            <div class="mini-actions mini-actions--row">
+              <select
+                id="sortSelect"
+                class="control control--mini"
+                title="Sort results"
+              >
+                <option value="popularity">Sort: Popularity</option>
+                <option value="rating">Sort: Highest rated</option>
+                <option value="newest">Sort: Newest</option>
+                <option value="oldest">Sort: Oldest</option>
+                <option value="personalized">Sort: Best for you</option>
+              </select>
+
               <button id="shuffleBtn" class="btn btn--ghost" type="button">
                 🎲 Surprise Me
               </button>
@@ -206,6 +264,7 @@
                   <li>Remove some genre filters</li>
                   <li>Lower the minimum rating</li>
                   <li>Increase the maximum duration</li>
+                  <li>Widen the year range</li>
                 </ul>
               </div>
             </div>

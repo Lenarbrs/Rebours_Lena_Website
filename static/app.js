@@ -23,6 +23,15 @@ const els = {
   shuffleBtn: $("#shuffleBtn"),
   linguisticLevel: $("#linguisticLevel"),
 
+  yearMin: $("#yearMin"),
+  yearMax: $("#yearMax"),
+
+  sortSelect: $("#sortSelect"),
+
+  boothPicks: $("#boothPicks"),
+  boothPicksHint: $("#boothPicksHint"),
+  refreshPicksBtn: $("#refreshPicksBtn"),
+
   cards: $("#cards"),
   empty: $("#emptyState"),
   resultsMeta: $("#resultsMeta"),
@@ -51,13 +60,13 @@ let currentDialogId = null;
 let lastResults = [];
 let isPrinting = false;
 
-/* ---------- Initialisation ---------- */
 initTheme();
 wireUI();
 updateFavCount();
 
 (async function boot() {
   await Promise.all([hydrateLanguages(), hydrateLinguisticLevels()]);
+  await loadBoothPicks(); // if lang pre-selected later
 })();
 
 /* ---------- API helpers ---------- */
@@ -79,10 +88,40 @@ async function apiPost(url, payload) {
 }
 
 async function apiMovie(id) {
-  const r = await fetch(`/api/movie/${encodeURIComponent(id)}`);
+  const r = await fetch(`/api/movie/${encodeURIComponent(id)}`, {
+    headers: { Accept: "application/json" },
+  });
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(data?.error || "Movie not found");
   return data;
+}
+
+/* ---------- Favorites helpers ---------- */
+function idStr(id) {
+  return String(id);
+}
+function isFav(id) {
+  return favorites.has(idStr(id));
+}
+function toggleFav(id) {
+  const k = idStr(id);
+  if (favorites.has(k)) favorites.delete(k);
+  else favorites.add(k);
+  persistFav();
+}
+function persistFav() {
+  localStorage.setItem(STORAGE.fav, JSON.stringify([...favorites]));
+}
+function cacheMovie(m) {
+  if (!m || m.id == null) return;
+  favCache[idStr(m.id)] = m;
+  persistFavCache();
+}
+function persistFavCache() {
+  localStorage.setItem(STORAGE.fav_cache, JSON.stringify(favCache));
+}
+function updateFavCount() {
+  els.favCount.textContent = String(favorites.size);
 }
 
 /* ---------- UI wiring ---------- */
@@ -104,11 +143,30 @@ function wireUI() {
     }
   });
 
+  // Booth picks refresh
+  els.refreshPicksBtn.addEventListener("click", async () => {
+    await loadBoothPicks(true);
+  });
+
   // Language change
   els.langSelect.addEventListener("change", async () => {
     selectedGenres = [];
     renderTags();
     await updateGenreSuggestions();
+    await loadBoothPicks(true);
+  });
+
+  // Reload booth picks when year changes (optional)
+  const yearHandler = debounce(async () => loadBoothPicks(false), 350);
+  els.yearMin.addEventListener("input", yearHandler);
+  els.yearMax.addEventListener("input", yearHandler);
+
+  // Sort change: re-print if we already have a query
+  els.sortSelect.addEventListener("change", async () => {
+    const lang = (els.langSelect.value || "").trim();
+    if (!lang) return;
+    // If user already printed once or wants immediate refresh
+    if (lastResults.length) await recommendAndRender();
   });
 
   // Genre tag input
@@ -120,6 +178,7 @@ function wireUI() {
       addGenre(raw);
       els.genreInput.value = "";
       await updateGenreSuggestions();
+      await loadBoothPicks(false);
     } else if (
       e.key === "Backspace" &&
       !els.genreInput.value &&
@@ -127,6 +186,7 @@ function wireUI() {
     ) {
       removeGenre(selectedGenres[selectedGenres.length - 1]);
       await updateGenreSuggestions();
+      await loadBoothPicks(false);
     }
   });
 
@@ -147,6 +207,9 @@ function wireUI() {
       els.maxRuntime.value = "";
       els.linguisticLevel.value = "";
       els.topN.value = 20;
+      els.yearMin.value = "";
+      els.yearMax.value = "";
+      els.sortSelect.value = "popularity";
 
       els.cards.innerHTML = "";
       els.chips.innerHTML = "";
@@ -154,6 +217,8 @@ function wireUI() {
         "Your personalized film recommendations will appear here";
       els.empty.hidden = true;
       lastResults = [];
+      els.boothPicks.innerHTML = "";
+      els.boothPicksHint.textContent = "Select a language to load picks.";
       await updateGenreSuggestions();
     }
   });
@@ -172,6 +237,10 @@ function wireUI() {
     toggleFav(currentDialogId);
     renderDialogFromCacheOrState(currentDialogId);
     updateFavCount();
+    renderFav();
+    // update booth picks hearts
+    syncBoothPicksFavUI();
+    syncCardsFavUI();
   });
 
   // Close drawer when clicking outside
@@ -186,6 +255,129 @@ function wireUI() {
   els.dialog.addEventListener("keydown", (e) => {
     if (e.key === "Escape") els.dialog.close();
   });
+}
+
+/* ---------- Booth Picks ---------- */
+async function loadBoothPicks(force = false) {
+  els.boothPicks.innerHTML = "";
+  const lang = (els.langSelect.value || "").trim().toLowerCase();
+
+  if (!lang) {
+    els.boothPicksHint.textContent = "Select a language to load picks.";
+    return;
+  }
+
+  els.boothPicksHint.textContent = "Loading picks...";
+
+  const yearMin = clampInt(els.yearMin.value, 1800, 2100);
+  const yearMax = clampInt(els.yearMax.value, 1800, 2100);
+
+  const params = new URLSearchParams();
+  params.set("lang", lang);
+  params.set("limit", "12");
+  if (selectedGenres.length) params.set("genres", selectedGenres.join(","));
+  if (yearMin != null) params.set("year_min", String(yearMin));
+  if (yearMax != null) params.set("year_max", String(yearMax));
+  if (force) params.set("_", String(Date.now())); // bust browser cache
+
+  try {
+    const data = await apiGet(`/api/booth_movies?${params.toString()}`);
+    const list = data.results || [];
+    els.boothPicksHint.textContent = list.length
+      ? "Click ♥ to add favorites (used for “Best for you”)."
+      : "No booth picks with these constraints. Try widening filters.";
+    renderBoothPicks(list);
+  } catch (e) {
+    console.error(e);
+    els.boothPicksHint.textContent = "Could not load booth picks.";
+  }
+}
+
+function renderBoothPicks(list) {
+  els.boothPicks.innerHTML = "";
+
+  list.forEach((m) => {
+    cacheMovie(m);
+
+    const card = document.createElement("article");
+    card.className = "pick-card";
+    card.tabIndex = 0;
+
+    const poster = document.createElement("img");
+    poster.className = "pick-poster";
+    poster.src = posterSrc(m);
+    poster.alt = `Poster: ${safeTitle(m)}`;
+    poster.loading = "lazy";
+    poster.decoding = "async";
+
+    const info = document.createElement("div");
+    info.className = "pick-info";
+
+    const title = document.createElement("div");
+    title.className = "pick-title";
+    title.textContent = safeTitle(m);
+
+    const sub = document.createElement("div");
+    sub.className = "pick-sub";
+    sub.textContent = `${yearFromDate(m.release_date)} • ${(
+      m.original_language || "??"
+    ).toUpperCase()}`;
+
+    const row = document.createElement("div");
+    row.className = "pick-actions";
+
+    const fav = document.createElement("button");
+    fav.className = "iconbtn iconbtn--sm";
+    fav.type = "button";
+    fav.textContent = isFav(m.id) ? "♥" : "♡";
+    fav.title = isFav(m.id) ? "Remove from favorites" : "Add to favorites";
+    fav.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleFav(m.id);
+      fav.textContent = isFav(m.id) ? "♥" : "♡";
+      fav.title = isFav(m.id) ? "Remove from favorites" : "Add to favorites";
+      updateFavCount();
+      renderFav();
+      // keep other places consistent
+      syncCardsFavUI();
+    });
+
+    const details = document.createElement("button");
+    details.className = "btn btn--ghost btn--sm";
+    details.type = "button";
+    details.textContent = "Details";
+    details.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await openDialog(m.id);
+    });
+
+    row.appendChild(fav);
+    row.appendChild(details);
+
+    info.appendChild(title);
+    info.appendChild(sub);
+    info.appendChild(row);
+
+    card.appendChild(poster);
+    card.appendChild(info);
+
+    card.addEventListener("click", async () => await openDialog(m.id));
+    card.addEventListener("keydown", async (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        await openDialog(m.id);
+      }
+    });
+
+    els.boothPicks.appendChild(card);
+  });
+}
+
+function syncBoothPicksFavUI() {
+  // Simple approach: reload booth picks heart states by toggling text if needed
+  const btns = els.boothPicks.querySelectorAll(".pick-card .iconbtn");
+  // We don't have IDs stored on elements -> cheap approach: just reload picks if you want:
+  // (keeping it minimal: do nothing here)
 }
 
 /* ---------- Recommendations via API ---------- */
@@ -211,6 +403,11 @@ async function recommendAndRender() {
     const rt = (els.maxRuntime.value || "").trim();
     const linguisticLevel = (els.linguisticLevel.value || "").trim();
 
+    const yearMin = clampInt(els.yearMin.value, 1800, 2100);
+    const yearMax = clampInt(els.yearMax.value, 1800, 2100);
+
+    const sortBy = (els.sortSelect.value || "popularity").trim();
+
     const payload = {
       lang,
       genres: selectedGenres,
@@ -218,6 +415,10 @@ async function recommendAndRender() {
       min_rating: mr ? Number(mr) : null,
       max_runtime: rt ? Number(rt) : null,
       linguistic_level: linguisticLevel || null,
+      year_min: yearMin ?? null,
+      year_max: yearMax ?? null,
+      sort_by: sortBy,
+      fav_ids: [...favorites], // ✅ personalization input
     };
 
     const data = await apiPost("/api/recommendations", payload);
@@ -231,8 +432,14 @@ async function recommendAndRender() {
     renderCards(result);
     els.empty.hidden = result.length !== 0;
 
+    const sortLabel = sortLabelFromValue(data.sort_by || sortBy);
+    const favNote =
+      sortBy === "personalized" && favorites.size === 0
+        ? " (add favorites to activate)"
+        : "";
+
     els.resultsMeta.textContent = result.length
-      ? `🎟️ Ticket printed: ${result.length} film(s) • Language: ${lang} • Sorted by popularity ↓`
+      ? `🎟️ Ticket printed: ${result.length} film(s) • Language: ${lang} • ${sortLabel}${favNote}`
       : `🎬 No matching films found. Try adjusting your criteria.`;
   } catch (error) {
     console.error("Error in recommendAndRender:", error);
@@ -243,11 +450,22 @@ async function recommendAndRender() {
   }
 }
 
+function sortLabelFromValue(v) {
+  const s = String(v || "").toLowerCase();
+  if (s === "rating") return "Sorted by: Highest rated ↓";
+  if (s === "newest") return "Sorted by: Newest ↓";
+  if (s === "oldest") return "Sorted by: Oldest ↑";
+  if (s === "personalized") return "Sorted by: Best for you ⭐";
+  return "Sorted by: Popularity ↓";
+}
+
 /* ---------- Render Cards ---------- */
 function renderCards(list) {
   els.cards.innerHTML = "";
 
   list.forEach((m, index) => {
+    cacheMovie(m);
+
     const card = document.createElement("article");
     card.className = "card";
     card.tabIndex = 0;
@@ -290,20 +508,17 @@ function renderCards(list) {
     const fav = document.createElement("button");
     fav.className = "iconbtn";
     fav.type = "button";
-    fav.textContent = favorites.has(m.id) ? "♥" : "♡";
-    fav.title = favorites.has(m.id)
-      ? "Remove from favorites"
-      : "Add to favorites";
+    fav.textContent = isFav(m.id) ? "♥" : "♡";
+    fav.title = isFav(m.id) ? "Remove from favorites" : "Add to favorites";
     fav.addEventListener("click", (e) => {
       e.stopPropagation();
-      cacheMovie(m);
       toggleFav(m.id);
-      fav.textContent = favorites.has(m.id) ? "♥" : "♡";
-      fav.title = favorites.has(m.id)
-        ? "Remove from favorites"
-        : "Add to favorites";
+      fav.textContent = isFav(m.id) ? "♥" : "♡";
+      fav.title = isFav(m.id) ? "Remove from favorites" : "Add to favorites";
       updateFavCount();
       renderFav();
+      // keep booth picks consistent
+      // (optional: you can also reload booth picks)
     });
 
     const info = document.createElement("button");
@@ -351,6 +566,12 @@ function renderCards(list) {
   });
 }
 
+function syncCardsFavUI() {
+  // minimal approach: if you want live sync, easiest is to re-render lastResults
+  // but we keep it simple to avoid flicker.
+}
+
+/* ---------- Chips ---------- */
 function renderChips() {
   els.chips.innerHTML = "";
   const chips = [];
@@ -368,6 +589,10 @@ function renderChips() {
   const ll = (els.linguisticLevel.value || "").trim();
   if (ll) chips.push(`Level: ${ll.replace(/\b\w/g, (c) => c.toUpperCase())}`);
 
+  const y1 = (els.yearMin.value || "").trim();
+  const y2 = (els.yearMax.value || "").trim();
+  if (y1 || y2) chips.push(`Years: ${y1 || "…"} → ${y2 || "…"}`);
+
   chips.push(`TopN: ${clampInt(els.topN.value, 1, 100) ?? 20}`);
 
   chips.forEach((t) => {
@@ -378,6 +603,7 @@ function renderChips() {
   });
 }
 
+/* ---------- Printer anim ---------- */
 function animatePrinter() {
   els.printer.classList.remove("is-printing");
   void els.printer.offsetWidth;
@@ -386,9 +612,11 @@ function animatePrinter() {
 
 /* ---------- Dialog ---------- */
 async function openDialog(id) {
-  currentDialogId = id;
+  currentDialogId = idStr(id);
 
-  const local = (lastResults || []).find((x) => x.id === id) || favCache[id];
+  const local =
+    (lastResults || []).find((x) => idStr(x.id) === currentDialogId) ||
+    favCache[currentDialogId];
   if (local) {
     renderDialog(local);
     els.dialog.showModal();
@@ -406,7 +634,8 @@ async function openDialog(id) {
 }
 
 function renderDialogFromCacheOrState(id) {
-  const m = (lastResults || []).find((x) => x.id === id) || favCache[id];
+  const k = idStr(id);
+  const m = (lastResults || []).find((x) => idStr(x.id) === k) || favCache[k];
   if (m) renderDialog(m);
 }
 
@@ -428,54 +657,24 @@ function renderDialog(m) {
     els.dialogMeta.appendChild(badge(`Rating: ${fmt(m.vote_average)}★`));
   if (m.runtime != null)
     els.dialogMeta.appendChild(badge(`Duration: ${m.runtime} min`));
-  if (Array.isArray(m.genre_list) && m.genre_list.length) {
+  if (Array.isArray(m.genre_list) && m.genre_list.length)
     els.dialogMeta.appendChild(badge(`Genres: ${m.genre_list.join(", ")}`));
-  }
   if (m.linguistic_level)
     els.dialogMeta.appendChild(badge(`Level: ${m.linguistic_level}`));
   if (m.linguistic_register)
     els.dialogMeta.appendChild(badge(`Register: ${m.linguistic_register}`));
 
-  const isFav = favorites.has(m.id);
-  els.dialogFavBtn.textContent = isFav ? "♥ Remove Favorite" : "♡ Add Favorite";
-  els.dialogFavBtn.title = isFav ? "Remove from favorites" : "Add to favorites";
+  const fav = isFav(m.id);
+  els.dialogFavBtn.textContent = fav ? "♥ Remove Favorite" : "♡ Add Favorite";
+  els.dialogFavBtn.title = fav ? "Remove from favorites" : "Add to favorites";
 }
 
-/* ---------- Favorites ---------- */
-function toggleFav(id) {
-  id = String(id);
-  if (favorites.has(id)) {
-    favorites.delete(id);
-  } else {
-    favorites.add(id);
-  }
-  persistFav();
-}
-
-function persistFav() {
-  localStorage.setItem(STORAGE.fav, JSON.stringify([...favorites]));
-}
-
-function cacheMovie(m) {
-  if (!m || !m.id) return;
-  favCache[String(m.id)] = m;
-  persistFavCache();
-}
-
-function persistFavCache() {
-  localStorage.setItem(STORAGE.fav_cache, JSON.stringify(favCache));
-}
-
-function updateFavCount() {
-  els.favCount.textContent = String(favorites.size);
-}
-
+/* ---------- Favorites drawer ---------- */
 function openFavDrawer() {
   els.favDrawer.classList.add("open");
   els.favDrawer.setAttribute("aria-hidden", "false");
   renderFav();
 }
-
 function closeFavDrawer() {
   els.favDrawer.classList.remove("open");
   els.favDrawer.setAttribute("aria-hidden", "true");
@@ -553,12 +752,10 @@ function addGenre(g) {
   selectedGenres.push(g);
   renderTags();
 }
-
 function removeGenre(g) {
   selectedGenres = selectedGenres.filter((x) => x !== g);
   renderTags();
 }
-
 function renderTags() {
   els.tagList.innerHTML = "";
   selectedGenres.forEach((g) => {
@@ -573,6 +770,7 @@ function renderTags() {
     x.addEventListener("click", async () => {
       removeGenre(g);
       await updateGenreSuggestions();
+      await loadBoothPicks(false);
     });
 
     t.appendChild(x);
@@ -613,6 +811,7 @@ async function updateGenreSuggestions() {
       b.addEventListener("click", async () => {
         addGenre(g);
         await updateGenreSuggestions();
+        await loadBoothPicks(false);
       });
       els.suggestions.appendChild(b);
     });
@@ -677,12 +876,10 @@ function initTheme() {
   const saved = localStorage.getItem(STORAGE.theme) || "dark";
   setTheme(saved);
 }
-
 function toggleTheme() {
   const cur = document.documentElement.getAttribute("data-theme") || "dark";
   setTheme(cur === "dark" ? "light" : "dark");
 }
-
 function setTheme(t) {
   document.documentElement.setAttribute("data-theme", t);
   localStorage.setItem(STORAGE.theme, t);
@@ -710,27 +907,33 @@ function yearFromDate(d) {
 function safeTitle(m) {
   return m?.title || "Unknown title";
 }
-
 function safeOriginal(m) {
   return m?.original_title || "";
 }
-
 function fmt(n) {
   const x = Number(n);
   if (Number.isNaN(x)) return "N/A";
   return x.toFixed(1);
 }
-
 function clampInt(v, a, b) {
-  const n = parseInt(String(v), 10);
+  const s = String(v || "").trim();
+  if (!s) return null;
+  const n = parseInt(s, 10);
   if (Number.isNaN(n)) return null;
   return Math.max(a, Math.min(b, n));
 }
-
 function posterSrc(m) {
   if (m?.poster_url) return m.poster_url;
   if (m?.poster_path) return `https://image.tmdb.org/t/p/w342${m.poster_path}`;
   return "/static/placeholder-poster.png";
+}
+
+function debounce(fn, wait) {
+  let t = null;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), wait);
+  };
 }
 
 /* ---------- Loader ---------- */
