@@ -57,8 +57,7 @@ wireUI();
 updateFavCount();
 
 (async function boot() {
-  await hydrateLanguages();
-  await hydrateLinguisticLevels();
+  await Promise.all([hydrateLanguages(), hydrateLinguisticLevels()]);
 })();
 
 /* ---------- API helpers ---------- */
