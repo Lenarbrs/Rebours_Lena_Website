@@ -1170,7 +1170,7 @@ body {
    ========================== */
 
 :root {
-  --ui-scale: 0.9; /* 0.88 = plus petit / 0.92 = plus léger */
+  --ui-scale: 0.8; /* 0.88 = plus petit / 0.92 = plus léger */
 }
 
 /* Base typographie */
