@@ -111,9 +111,9 @@ def api_languages():
     conn = get_db()
     try:
         with conn.cursor() as cur:
-            cur.execute("""
+            cur.execute(f"""
                 SELECT DISTINCT LOWER(original_language)
-                FROM movies
+                FROM {TABLE_NAME}
                 WHERE original_language IS NOT NULL AND TRIM(original_language) <> ''
                 ORDER BY 1;
             """)
@@ -134,9 +134,9 @@ def api_levels():
     conn = get_db()
     try:
         with conn.cursor() as cur:
-            cur.execute("""
+            cur.execute(f"""
                 SELECT DISTINCT LOWER(linguistic_level)
-                FROM movies
+                FROM {TABLE_NAME}
                 WHERE linguistic_level IS NOT NULL AND TRIM(linguistic_level) <> ''
                 ORDER BY 1;
             """)
@@ -160,9 +160,9 @@ def api_genres():
     conn = get_db()
     try:
         with conn.cursor() as cur:
-            cur.execute("""
+            cur.execute(f"""
                 SELECT DISTINCT LOWER(g)
-                FROM movies
+                FROM {TABLE_NAME}
                 CROSS JOIN LATERAL unnest(genres) g
                 WHERE LOWER(original_language) = %s
                 ORDER BY 1;
@@ -210,7 +210,7 @@ def api_recommendations():
 
     sql = f"""
         SELECT *
-        FROM movies
+        FROM {TABLE_NAME}
         WHERE {' AND '.join(where)}
         ORDER BY popularity DESC
         LIMIT %s;
@@ -235,49 +235,74 @@ def api_recommendations():
 # ======================================================
 @app.get("/api/stats")
 def api_stats():
+    # Ajoute ?refresh=1 pour bypass le cache pendant tes tests
+    refresh = request.args.get("refresh") == "1"
+
     c = _CACHE["stats"]
-    if c["data"] and time.time() - c["ts"] < CACHE_TTL:
+    if (not refresh) and c["data"] and time.time() - c["ts"] < CACHE_TTL:
         return jsonify(c["data"])
 
     conn = get_db()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM movies;")
+            cur.execute(f"SELECT COUNT(*) FROM {TABLE_NAME};")
             total = cur.fetchone()[0]
 
-            cur.execute("""
+            cur.execute(f"""
                 SELECT LOWER(original_language), COUNT(*)
-                FROM movies
+                FROM {TABLE_NAME}
+                WHERE original_language IS NOT NULL AND TRIM(original_language) <> ''
                 GROUP BY 1
                 ORDER BY 2 DESC
                 LIMIT 20;
             """)
             languages = [{"label": r[0], "value": r[1]} for r in cur.fetchall() if r[0]]
 
-            cur.execute("""
+            cur.execute(f"""
                 SELECT LOWER(linguistic_level), COUNT(*)
-                FROM movies
-                WHERE linguistic_level IS NOT NULL
+                FROM {TABLE_NAME}
+                WHERE linguistic_level IS NOT NULL AND TRIM(linguistic_level) <> ''
                 GROUP BY 1
                 ORDER BY 2 DESC;
             """)
             levels = [{"label": r[0], "value": r[1]} for r in cur.fetchall() if r[0]]
 
-            cur.execute("""
+            cur.execute(f"""
                 SELECT LOWER(g), COUNT(*)
-                FROM movies
+                FROM {TABLE_NAME}
                 CROSS JOIN LATERAL unnest(genres) g
+                WHERE g IS NOT NULL AND TRIM(g) <> ''
                 GROUP BY 1
                 ORDER BY 2 DESC
                 LIMIT 25;
             """)
             genres = [{"label": r[0], "value": r[1]} for r in cur.fetchall() if r[0]]
 
+            # ✅ HISTOGRAMME DES ANNEES — robuste même si release_date est un texte "YYYY-MM-DD"
+            # On extrait l'année seulement si ça commence par 4 chiffres
+            cur.execute(f"""
+                SELECT year_int, COUNT(*)
+                FROM (
+                  SELECT
+                    CASE
+                      WHEN release_date IS NOT NULL AND release_date::text ~ '^\\d{{4}}'
+                      THEN SUBSTRING(release_date::text FROM 1 FOR 4)::int
+                      ELSE NULL
+                    END AS year_int
+                  FROM {TABLE_NAME}
+                ) t
+                WHERE year_int IS NOT NULL
+                GROUP BY year_int
+                ORDER BY year_int ASC;
+            """)
+            years = [{"year": r[0], "count": r[1]} for r in cur.fetchall() if r[0]]
+
         payload = {
             "total_movies": total,
             "languages_top": languages,
             "levels_top": levels,
             "genres_top": genres,
+            "years_distribution": years,  # ✅ AJOUT IMPORTANT
         }
 
         c["data"] = payload

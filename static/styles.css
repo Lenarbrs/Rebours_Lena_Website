@@ -1485,3 +1485,45 @@ html {
   border-color: #d4af37;
   box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.22);
 }
+/* =========================
+   Dark mode: Favorites drawer readability
+   ========================= */
+
+[data-theme="dark"] .drawer {
+  background: linear-gradient(160deg, #14100f, #1a1412);
+  border-left: 1px solid rgba(212, 175, 55, 0.22);
+}
+
+[data-theme="dark"] .drawer__title {
+  color: var(--gold); /* ✅ titre visible */
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="dark"] .drawer__head {
+  border-bottom: 1px solid rgba(212, 175, 55, 0.18);
+}
+
+[data-theme="dark"] .drawer__foot {
+  border-top: 1px solid rgba(212, 175, 55, 0.18);
+}
+
+/* Items favoris: un peu plus contrastés */
+[data-theme="dark"] .favitem {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(212, 175, 55, 0.18);
+}
+
+[data-theme="dark"] .favitem__sub {
+  color: rgba(246, 240, 222, 0.72);
+}
+
+/* Boutons du drawer (Close / Clear All) un peu plus lisibles */
+[data-theme="dark"] #favDrawer .btn--ghost {
+  color: var(--gold);
+  border-color: rgba(212, 175, 55, 0.3);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="dark"] #favDrawer .btn--ghost:hover {
+  background: rgba(0, 0, 0, 0.35);
+}

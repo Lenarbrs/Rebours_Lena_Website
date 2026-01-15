@@ -26,20 +26,22 @@ async function apiGet(url) {
 }
 
 async function boot() {
+  // Tu peux ajouter ?refresh=1 pour bypass le cache côté serveur (voir app.py)
   const data = await apiGet("/api/stats").catch(() => null);
 
   const total = Number(data?.total_movies ?? 0);
-  els.totalMovies.textContent = String(total);
+  if (els.totalMovies) els.totalMovies.textContent = String(total);
 
   if (!data || !Number.isFinite(total) || total <= 0) {
-    els.statsEmpty.hidden = false;
+    if (els.statsEmpty) els.statsEmpty.hidden = false;
     destroyCharts();
     return;
   }
 
-  els.statsEmpty.hidden = true;
+  if (els.statsEmpty) els.statsEmpty.hidden = true;
 
   destroyCharts();
+
   charts.push(
     makeBar(els.chartLanguages, normalizeItems(data.languages_top), "Count")
   );
@@ -50,7 +52,7 @@ async function boot() {
     makeBar(els.chartGenres, normalizeItems(data.genres_top), "Count")
   );
 
-  // HISTOGRAMME: toutes les années triées + autoskip ticks
+  // Histogramme des années
   const years = normalizeYearDistribution(data.years_distribution);
   charts.push(makeYearHistogram(els.chartYears, years));
 }
@@ -73,7 +75,10 @@ function gridColor() {
   return themeIsDark() ? "rgba(212, 175, 55, 0.15)" : "rgba(139, 0, 0, 0.10)";
 }
 
-/* Supports [{label,value}] OR {label: value} */
+/* Supports:
+   - [{label,value}] / [{label,count}]
+   - {"label": value}
+*/
 function normalizeItems(input) {
   let items = [];
 
@@ -94,7 +99,11 @@ function normalizeItems(input) {
   return items.filter((x) => x.label);
 }
 
-/* years_distribution can be dict OR list; return [{year, count}] sorted asc */
+/* years_distribution supports:
+   - [{year,count}] OR [{label,value}]
+   - {"1999": 12, "2000": 8}
+   return [{year, count}] sorted asc
+*/
 function normalizeYearDistribution(input) {
   let pairs = [];
 
@@ -115,6 +124,21 @@ function normalizeYearDistribution(input) {
     .sort((a, b) => a.year - b.year);
 
   return pairs;
+}
+
+function baseOptions() {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: axisColor() } },
+      tooltip: { enabled: true },
+    },
+    scales: {
+      x: { ticks: { color: axisColor() }, grid: { color: gridColor() } },
+      y: { ticks: { color: axisColor() }, grid: { color: gridColor() } },
+    },
+  };
 }
 
 function makeBar(canvas, items, yLabel) {
@@ -142,14 +166,14 @@ function makeYearHistogram(canvas, pairs) {
       ...baseOptions(),
       plugins: {
         ...baseOptions().plugins,
-        legend: { display: false }, // histogramme: pas besoin
+        legend: { display: false },
       },
       scales: {
         x: {
           ticks: {
             color: axisColor(),
             autoSkip: true,
-            maxTicksLimit: 14, // évite que ça devienne illisible
+            maxTicksLimit: 14,
           },
           grid: { color: gridColor() },
         },
@@ -163,21 +187,7 @@ function makeYearHistogram(canvas, pairs) {
   });
 }
 
-function baseOptions() {
-  return {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { labels: { color: axisColor() } },
-      tooltip: { enabled: true },
-    },
-    scales: {
-      x: { ticks: { color: axisColor() }, grid: { color: gridColor() } },
-      y: { ticks: { color: axisColor() }, grid: { color: gridColor() } },
-    },
-  };
-}
-
+/* Theme */
 function initTheme() {
   const saved = localStorage.getItem(STORAGE.theme) || "dark";
   setTheme(saved);
