@@ -1881,3 +1881,85 @@ html {
   border-radius: 10px;
   font-size: 0.92rem;
 }
+
+/* Dark mode: titles in velvet screens should be readable (gold, not dark red) */
+[data-theme="dark"] .panel--velvet .panel__title,
+[data-theme="dark"] .panel--velvet h2,
+[data-theme="dark"] .panel--velvet h3 {
+  color: var(--gold);
+}
+
+/* Chips readability in LIGHT mode on velvet screen */
+[data-theme="light"] .chips {
+  background: rgba(255, 255, 255, 0.14);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+[data-theme="light"] .chip {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+/* Hearts: make selected state obvious */
+.pick__fav,
+.iconbtn--heart {
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.35);
+}
+
+.pick__fav {
+  background: rgba(255, 255, 255, 0.88);
+  color: #8b0000;
+  border-color: rgba(139, 0, 0, 0.22);
+}
+
+.pick__fav.is-on {
+  background: rgba(212, 175, 55, 0.95);
+  color: #3a0000;
+  border-color: rgba(212, 175, 55, 0.55);
+  box-shadow: 0 10px 26px rgba(212, 175, 55, 0.22);
+}
+
+[data-theme="dark"] .pick__fav {
+  background: rgba(0, 0, 0, 0.42);
+  color: rgba(255, 255, 255, 0.92);
+  border-color: rgba(212, 175, 55, 0.28);
+}
+
+[data-theme="dark"] .pick__fav.is-on {
+  background: rgba(212, 175, 55, 0.95);
+  color: #120000;
+}
+
+/* Card heart button: stronger contrast */
+.iconbtn--heart {
+  font-size: 1.2rem;
+}
+
+[data-theme="light"] .iconbtn--heart {
+  background: rgba(255, 255, 255, 0.95);
+  color: #8b0000;
+  border-color: rgba(139, 0, 0, 0.22);
+}
+
+[data-theme="dark"] .iconbtn--heart {
+  background: rgba(0, 0, 0, 0.45);
+  color: rgba(255, 255, 255, 0.92);
+  border-color: rgba(212, 175, 55, 0.3);
+}
+
+/* Drawers: Preferences same readability */
+[data-theme="dark"] #prefsDrawer.drawer {
+  background: linear-gradient(160deg, #14100f, #1a1412);
+  border-left: 1px solid rgba(212, 175, 55, 0.22);
+}
+
+[data-theme="dark"] #prefsDrawer .drawer__title {
+  color: var(--gold);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="light"] .btn--primary {
+  background: linear-gradient(135deg, #8b0000, #5c0000);
+  color: #fff;
+}

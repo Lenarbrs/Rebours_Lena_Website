@@ -303,6 +303,80 @@ def api_booth_picks():
     finally:
         release_db(conn)
 
+@app.get("/api/stats")
+def api_stats():
+    # optional refresh
+    refresh = request.args.get("refresh") == "1"
+    c = _CACHE["stats"]
+    if (not refresh) and c["data"] and time.time() - c["ts"] < CACHE_TTL:
+        return jsonify(c["data"])
+
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            # total
+            cur.execute(f"SELECT COUNT(*) FROM {TABLE_NAME};")
+            total = cur.fetchone()[0] or 0
+
+            # top languages
+            cur.execute(f"""
+                SELECT LOWER(original_language) AS label, COUNT(*) AS count
+                FROM {TABLE_NAME}
+                WHERE original_language IS NOT NULL AND TRIM(original_language) <> ''
+                GROUP BY 1
+                ORDER BY count DESC
+                LIMIT 12;
+            """)
+            languages = [{"label": r[0], "count": r[1]} for r in cur.fetchall()]
+
+            # top levels
+            cur.execute(f"""
+                SELECT LOWER(linguistic_level) AS label, COUNT(*) AS count
+                FROM {TABLE_NAME}
+                WHERE linguistic_level IS NOT NULL AND TRIM(linguistic_level) <> ''
+                GROUP BY 1
+                ORDER BY count DESC
+                LIMIT 12;
+            """)
+            levels = [{"label": r[0], "count": r[1]} for r in cur.fetchall()]
+
+            # top genres
+            cur.execute(f"""
+                SELECT LOWER(g) AS label, COUNT(*) AS count
+                FROM {TABLE_NAME}
+                CROSS JOIN LATERAL unnest(genres) g
+                WHERE g IS NOT NULL AND TRIM(g) <> ''
+                GROUP BY 1
+                ORDER BY count DESC
+                LIMIT 14;
+            """)
+            genres = [{"label": r[0], "count": r[1]} for r in cur.fetchall()]
+
+            # years histogram
+            cur.execute(f"""
+                SELECT {YEAR_SQL} AS year, COUNT(*)
+                FROM {TABLE_NAME}
+                WHERE {YEAR_SQL} IS NOT NULL
+                GROUP BY 1
+                ORDER BY 1 ASC;
+            """)
+            years = [{"year": r[0], "count": r[1]} for r in cur.fetchall() if r[0]]
+
+        payload = {
+            "total_movies": total,
+            "languages_top": languages,
+            "levels_top": levels,
+            "genres_top": genres,
+            "years_distribution": years,
+        }
+
+        c["data"] = payload
+        c["ts"] = time.time()
+        return jsonify(payload)
+    finally:
+        release_db(conn)
+
+
 # ======================================================
 # API — recommendations (language required, others optional)
 # + yearMin/yearMax optional filters

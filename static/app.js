@@ -1,9 +1,9 @@
-// static/app.js
 const $ = (s) => document.querySelector(s);
 
 const els = {
   themeBtn: $("#themeBtn"),
 
+  // favorites
   openFavBtn: $("#openFavBtn"),
   closeFavBtn: $("#closeFavBtn"),
   clearFavBtn: $("#clearFavBtn"),
@@ -11,32 +11,40 @@ const els = {
   favList: $("#favList"),
   favCount: $("#favCount"),
 
+  // preferences
+  openPrefsBtn: $("#openPrefsBtn"),
+  closePrefsBtn: $("#closePrefsBtn"),
+  clearPrefsBtn: $("#clearPrefsBtn"),
+  prefsDrawer: $("#prefsDrawer"),
+  prefsList: $("#prefsList"),
+  prefCount: $("#prefCount"),
+  clearPrefsDrawerBtn: $("#clearPrefsDrawerBtn"),
+
+  // filters
   filters: $("#filters"),
   langSelect: $("#langSelect"),
   langInfo: $("#langInfo"),
-
   genreInput: $("#genreInput"),
   tagList: $("#tagList"),
   suggestions: $("#genreSuggestions"),
-
   minRating: $("#minRating"),
   maxRuntime: $("#maxRuntime"),
   yearMin: $("#yearMin"),
   yearMax: $("#yearMax"),
-
   topN: $("#topN"),
   resetBtn: $("#resetBtn"),
   shuffleBtn: $("#shuffleBtn"),
   linguisticLevel: $("#linguisticLevel"),
-
   sortSelect: $("#sortSelect"),
 
+  // results
   cards: $("#cards"),
   empty: $("#emptyState"),
   resultsMeta: $("#resultsMeta"),
   chips: $("#activeChips"),
   printer: $("#ticketPrinter"),
 
+  // dialog
   dialog: $("#movieDialog"),
   dialogTitle: $("#dialogTitle"),
   dialogSub: $("#dialogSub"),
@@ -44,21 +52,30 @@ const els = {
   dialogMeta: $("#dialogMeta"),
   dialogFavBtn: $("#dialogFavBtn"),
 
+  // booth picks (preferences)
   tasteBlock: $("#tasteBlock"),
   boothPicks: $("#boothPicks"),
-  boothPicksHint: $("#boothPicksHint"),
-  refreshPicksBtn: $("#refreshPicksBtn"),
 };
 
 const STORAGE = {
   theme: "cinelingua.theme",
-  fav: "cinelingua.fav",
+  favorites: "cinelingua.fav",
   fav_cache: "cinelingua.fav_cache",
+
+  prefs: "cinelingua.prefs", // ✅ preferences for personalization
+  prefs_cache: "cinelingua.prefs_cache",
 };
 
 let selectedGenres = [];
-let favorites = new Set(JSON.parse(localStorage.getItem(STORAGE.fav) || "[]"));
+
+let favorites = new Set(
+  JSON.parse(localStorage.getItem(STORAGE.favorites) || "[]")
+);
 let favCache = JSON.parse(localStorage.getItem(STORAGE.fav_cache) || "{}");
+
+// ✅ preferences are separate
+let prefs = new Set(JSON.parse(localStorage.getItem(STORAGE.prefs) || "[]"));
+let prefsCache = JSON.parse(localStorage.getItem(STORAGE.prefs_cache) || "{}");
 
 let currentDialogId = null;
 let lastResults = [];
@@ -66,7 +83,7 @@ let isPrinting = false;
 
 initTheme();
 wireUI();
-updateFavCount();
+updateCounts();
 
 (async function boot() {
   await Promise.all([hydrateLanguages(), hydrateLinguisticLevels()]);
@@ -99,53 +116,69 @@ async function apiMovie(id) {
 
 /* ---------- UI wiring ---------- */
 function wireUI() {
-  els.themeBtn.addEventListener("click", toggleTheme);
+  els.themeBtn?.addEventListener("click", toggleTheme);
 
-  // Favorites drawer
-  els.openFavBtn.addEventListener("click", openFavDrawer);
-  els.closeFavBtn.addEventListener("click", closeFavDrawer);
-  els.clearFavBtn.addEventListener("click", () => {
+  // favorites drawer
+  els.openFavBtn?.addEventListener("click", openFavDrawer);
+  els.closeFavBtn?.addEventListener("click", closeFavDrawer);
+  els.clearFavBtn?.addEventListener("click", () => {
     if (favorites.size === 0) return;
-    if (confirm("Clear all favorites from your collection?")) {
+    if (confirm("Clear all favorites?")) {
       favorites.clear();
       favCache = {};
-      persistFav();
+      persistFavorites();
       persistFavCache();
-      updateFavCount();
+      updateCounts();
       renderFav();
-      // also refresh booth picks hearts
-      renderBoothPicksFromCache();
+      renderCards(applySort(lastResults.slice()));
     }
   });
 
-  // Language change: show booth picks (same list for all), update genres
-  els.langSelect.addEventListener("change", async () => {
+  // preferences drawer
+  els.openPrefsBtn?.addEventListener("click", openPrefsDrawer);
+  els.closePrefsBtn?.addEventListener("click", closePrefsDrawer);
+
+  els.clearPrefsBtn?.addEventListener("click", () => clearPreferences());
+  els.clearPrefsDrawerBtn?.addEventListener("click", () => clearPreferences());
+
+  function clearPreferences() {
+    if (prefs.size === 0) return;
+    if (confirm("Clear all preferences used for personalization?")) {
+      prefs.clear();
+      prefsCache = {};
+      persistPrefs();
+      persistPrefsCache();
+      updateCounts();
+      renderPrefs();
+      // update booth picks hearts
+      repaintBoothPickHearts();
+      // sort might change
+      renderCards(applySort(lastResults.slice()));
+    }
+  }
+
+  // language change
+  els.langSelect?.addEventListener("change", async () => {
     selectedGenres = [];
     renderTags();
 
-    const lang = (els.langSelect.value || "").trim().toLowerCase();
+    const lang = normalizeLang(els.langSelect.value);
     if (lang) {
       els.tasteBlock.hidden = false;
-      await loadBoothPicks(false);
+      await loadBoothPicks();
     } else {
       els.tasteBlock.hidden = true;
       els.boothPicks.innerHTML = "";
-      els.boothPicksHint.textContent = "Select a language to load picks.";
     }
 
     await updateGenreSuggestions();
   });
 
-  // Refresh booth picks
-  els.refreshPicksBtn?.addEventListener("click", async () => {
-    await loadBoothPicks(true);
-  });
-
-  // Genre input
-  els.genreInput.addEventListener("keydown", async (e) => {
+  // genres input
+  els.genreInput?.addEventListener("keydown", async (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      const raw = els.genreInput.value.trim().toLowerCase();
+      const raw = normalizeGenre(els.genreInput.value);
       if (!raw) return;
       addGenre(raw);
       els.genreInput.value = "";
@@ -160,14 +193,14 @@ function wireUI() {
     }
   });
 
-  // Form submit
-  els.filters.addEventListener("submit", async (e) => {
+  // submit
+  els.filters?.addEventListener("submit", async (e) => {
     e.preventDefault();
     await recommendAndRender();
   });
 
-  // Reset optional filters only
-  els.resetBtn.addEventListener("click", async () => {
+  // reset optional filters
+  els.resetBtn?.addEventListener("click", async () => {
     if (confirm("Clear all optional filters? (Language stays)")) {
       selectedGenres = [];
       renderTags();
@@ -182,87 +215,88 @@ function wireUI() {
       els.cards.innerHTML = "";
       els.chips.innerHTML = "";
       els.resultsMeta.textContent =
-        "Your personalized film recommendations will appear here";
+        "Your movie recommendations will appear here (preferences are optional).";
       els.empty.hidden = true;
       lastResults = [];
       await updateGenreSuggestions();
     }
   });
 
-  // Surprise button
-  els.shuffleBtn.addEventListener("click", async () => {
-    const list = lastResults || [];
-    if (!list.length) return;
-    const pick = list[Math.floor(Math.random() * list.length)];
+  // surprise
+  els.shuffleBtn?.addEventListener("click", async () => {
+    if (!lastResults.length) return;
+    const pick = lastResults[Math.floor(Math.random() * lastResults.length)];
     await openDialog(pick.id);
   });
 
-  // Sort change (re-render without calling API)
+  // sort
   els.sortSelect?.addEventListener("change", () => {
     if (!lastResults.length) return;
-    const sorted = applySort(lastResults.slice());
-    renderCards(sorted);
+    renderCards(applySort(lastResults.slice()));
   });
 
-  // Dialog favorite
-  els.dialogFavBtn.addEventListener("click", () => {
+  // dialog favorite
+  els.dialogFavBtn?.addEventListener("click", () => {
     if (!currentDialogId) return;
-    toggleFav(currentDialogId);
+    toggleFavorite(currentDialogId);
     renderDialogFromCacheOrState(currentDialogId);
-    updateFavCount();
+    updateCounts();
     renderFav();
-    renderBoothPicksFromCache();
+    renderCards(applySort(lastResults.slice()));
   });
 
-  // Close drawer when clicking outside
+  // click outside drawers
   document.addEventListener("click", (e) => {
-    if (!els.favDrawer.classList.contains("open")) return;
-    if (els.favDrawer.contains(e.target) || els.openFavBtn.contains(e.target))
-      return;
-    closeFavDrawer();
+    if (els.favDrawer?.classList.contains("open")) {
+      if (
+        !els.favDrawer.contains(e.target) &&
+        !els.openFavBtn.contains(e.target)
+      )
+        closeFavDrawer();
+    }
+    if (els.prefsDrawer?.classList.contains("open")) {
+      if (
+        !els.prefsDrawer.contains(e.target) &&
+        !els.openPrefsBtn.contains(e.target)
+      )
+        closePrefsDrawer();
+    }
   });
 
-  // Close dialog on ESC
-  els.dialog.addEventListener("keydown", (e) => {
+  // ESC closes dialog
+  els.dialog?.addEventListener("keydown", (e) => {
     if (e.key === "Escape") els.dialog.close();
   });
 }
 
-/* ---------- Booth Picks ---------- */
-async function loadBoothPicks(forceRefresh) {
-  els.boothPicksHint.textContent = "Loading Booth Picks…";
+/* ---------- Booth Picks (Preferences) ---------- */
+async function loadBoothPicks() {
   try {
-    const url = forceRefresh
-      ? "/api/booth_picks?refresh=1"
-      : "/api/booth_picks";
-    const data = await apiGet(url);
-    const list = data.results || [];
-    renderBoothPicks(list);
-    els.boothPicksHint.textContent =
-      "Tip: pick at least 3 favorites for better personalization.";
+    const data = await apiGet("/api/booth_picks");
+    renderBoothPicks(data.results || []);
   } catch (e) {
     console.error(e);
-    els.boothPicksHint.textContent = "Could not load Booth Picks.";
+    els.boothPicks.innerHTML = "";
   }
 }
 
 function renderBoothPicks(list) {
   els.boothPicks.innerHTML = "";
-  (list || []).slice(0, 24).forEach((m) => {
-    cacheMovie(m);
+
+  (list || []).slice(0, 20).forEach((m) => {
+    // cache into prefsCache (not favorites)
+    cachePrefMovie(m);
 
     const card = document.createElement("article");
     card.className = "pick";
     card.tabIndex = 0;
     card.setAttribute("role", "button");
-    card.setAttribute("aria-label", `Booth pick: ${safeTitle(m)}`);
 
     const img = document.createElement("img");
     img.className = "pick__poster";
     img.src = posterSrc(m);
     img.alt = `Poster: ${safeTitle(m)}`;
     img.loading = "lazy";
-    img.decoding = "async";
 
     const meta = document.createElement("div");
     meta.className = "pick__meta";
@@ -277,20 +311,21 @@ function renderBoothPicks(list) {
       m.original_language || "??"
     ).toUpperCase()}`;
 
-    const fav = document.createElement("button");
-    fav.className = "pick__fav";
-    fav.type = "button";
-    fav.textContent = favorites.has(String(m.id)) ? "♥" : "♡";
-    fav.title = favorites.has(String(m.id))
-      ? "Remove from favorites"
-      : "Add to favorites";
-    fav.addEventListener("click", (e) => {
+    const heart = document.createElement("button");
+    heart.className = "pick__fav";
+    heart.type = "button";
+    heart.dataset.mid = String(m.id);
+
+    setPickHeartUI(heart, String(m.id));
+
+    heart.addEventListener("click", (e) => {
       e.stopPropagation();
-      cacheMovie(m);
-      toggleFav(m.id);
-      fav.textContent = favorites.has(String(m.id)) ? "♥" : "♡";
-      updateFavCount();
-      renderFav();
+      togglePref(m.id);
+      setPickHeartUI(heart, String(m.id));
+      updateCounts();
+      renderPrefs();
+      // sort might change
+      renderCards(applySort(lastResults.slice()));
     });
 
     meta.appendChild(t);
@@ -298,7 +333,7 @@ function renderBoothPicks(list) {
 
     card.appendChild(img);
     card.appendChild(meta);
-    card.appendChild(fav);
+    card.appendChild(heart);
 
     card.addEventListener("click", async () => await openDialog(m.id));
     card.addEventListener("keydown", async (e) => {
@@ -312,18 +347,20 @@ function renderBoothPicks(list) {
   });
 }
 
-function renderBoothPicksFromCache() {
-  // Quick refresh of hearts without refetching
-  const buttons = els.boothPicks?.querySelectorAll(".pick__fav");
-  if (!buttons) return;
-  buttons.forEach((btn) => {
-    const parent = btn.closest(".pick");
-    if (!parent) return;
-    // nothing stable to map; skip (optional)
+function repaintBoothPickHearts() {
+  els.boothPicks?.querySelectorAll(".pick__fav").forEach((btn) => {
+    setPickHeartUI(btn, btn.dataset.mid);
   });
 }
 
-/* ---------- Recommendations via API ---------- */
+function setPickHeartUI(btn, id) {
+  const on = prefs.has(String(id));
+  btn.textContent = on ? "♥" : "♡";
+  btn.title = on ? "Remove preference" : "Add preference";
+  btn.classList.toggle("is-on", on);
+}
+
+/* ---------- Recommendations ---------- */
 async function recommendAndRender() {
   if (isPrinting) return;
   isPrinting = true;
@@ -331,7 +368,7 @@ async function recommendAndRender() {
   const submitBtn = els.filters?.querySelector('button[type="submit"]');
   if (submitBtn) submitBtn.disabled = true;
 
-  const lang = (els.langSelect.value || "").trim().toLowerCase();
+  const lang = normalizeLang(els.langSelect.value);
   if (!lang) {
     if (submitBtn) submitBtn.disabled = false;
     isPrinting = false;
@@ -349,7 +386,7 @@ async function recommendAndRender() {
       top_n: topN,
       min_rating: numOrNull(els.minRating.value),
       max_runtime: numOrNull(els.maxRuntime.value),
-      linguistic_level: (els.linguisticLevel.value || "").trim() || null,
+      linguistic_level: normalizeMaybe(els.linguisticLevel.value),
       year_min: intOrNull(els.yearMin.value),
       year_max: intOrNull(els.yearMax.value),
     };
@@ -361,17 +398,20 @@ async function recommendAndRender() {
     renderChips();
     animatePrinter();
 
-    const sorted = applySort(result.slice());
-    renderCards(sorted);
+    renderCards(applySort(result.slice()));
 
-    els.empty.hidden = sorted.length !== 0;
+    els.empty.hidden = result.length !== 0;
 
-    const sortLabel = sortLabelFromValue(els.sortSelect?.value);
-    els.resultsMeta.textContent = sorted.length
-      ? `🎟️ Ticket printed: ${sorted.length} film(s) • Language: ${lang} • ${sortLabel}`
+    const personalizationStatus =
+      prefs.size >= 3
+        ? "Personalization: ON"
+        : "Personalization: OFF (preferences optional)";
+
+    els.resultsMeta.textContent = result.length
+      ? `🎟️ Ticket printed: ${result.length} film(s) • Language: ${lang} • ${personalizationStatus}`
       : `🎬 No matching films found. Try adjusting your criteria.`;
   } catch (error) {
-    console.error("Error in recommendAndRender:", error);
+    console.error(error);
   } finally {
     loader.remove();
     if (submitBtn) submitBtn.disabled = false;
@@ -383,31 +423,18 @@ async function recommendAndRender() {
 function applySort(list) {
   const mode = (els.sortSelect?.value || "popular").trim();
 
-  // simple sorts
-  if (mode === "popular") {
-    return list.sort(
-      (a, b) => Number(b.popularity ?? -1) - Number(a.popularity ?? -1)
-    );
-  }
-  if (mode === "rating") {
-    return list.sort(
-      (a, b) => Number(b.vote_average ?? -1) - Number(a.vote_average ?? -1)
-    );
-  }
-  if (mode === "recent") {
-    return list.sort((a, b) => yearInt(b) - yearInt(a));
-  }
-  if (mode === "oldest") {
-    return list.sort((a, b) => yearInt(a) - yearInt(b));
-  }
+  if (mode === "popular")
+    return list.sort((a, b) => num(b.popularity) - num(a.popularity));
+  if (mode === "rating")
+    return list.sort((a, b) => num(b.vote_average) - num(a.vote_average));
+  if (mode === "recent") return list.sort((a, b) => yearInt(b) - yearInt(a));
+  if (mode === "oldest") return list.sort((a, b) => yearInt(a) - yearInt(b));
 
-  // personalized
-  const profile = buildUserProfile();
+  // personalized (preferences-based)
+  const profile = buildUserProfileFromPrefs();
   if (!profile) {
-    // fallback to popular if not enough favorites
-    return list.sort(
-      (a, b) => Number(b.popularity ?? -1) - Number(a.popularity ?? -1)
-    );
+    // prefs are optional: fallback
+    return list.sort((a, b) => num(b.popularity) - num(a.popularity));
   }
 
   return list
@@ -416,30 +443,13 @@ function applySort(list) {
     .map((x) => x.m);
 }
 
-function sortLabelFromValue(v) {
-  switch (v) {
-    case "personal":
-      return "Sorted by: Best for you 🧠";
-    case "rating":
-      return "Sorted by: Highest rated ⭐";
-    case "recent":
-      return "Sorted by: Newest 🕰️";
-    case "oldest":
-      return "Sorted by: Oldest 🏛️";
-    case "popular":
-    default:
-      return "Sorted by: Popularity 🔥";
-  }
-}
+function buildUserProfileFromPrefs() {
+  const ids = [...prefs];
+  const movies = ids.map((id) => prefsCache[String(id)]).filter(Boolean);
 
-// Build profile from favorites (needs at least 3 cached favorites)
-function buildUserProfile() {
-  const favIds = [...favorites];
-  const favMovies = favIds.map((id) => favCache[String(id)]).filter(Boolean);
+  // ✅ require 3 for personalization
+  if (movies.length < 3) return null;
 
-  if (favMovies.length < 3) return null;
-
-  // genre weights
   const gCount = new Map();
   let gTotal = 0;
 
@@ -447,7 +457,7 @@ function buildUserProfile() {
   const runtimes = [];
   const ratings = [];
 
-  favMovies.forEach((m) => {
+  movies.forEach((m) => {
     const gs = extractGenres(m);
     gs.forEach((g) => {
       gCount.set(g, (gCount.get(g) || 0) + 1);
@@ -478,37 +488,31 @@ function buildUserProfile() {
 }
 
 function scoreMovie(m, profile) {
-  // genre affinity
   const gs = extractGenres(m);
   const gScore = gs.length
     ? gs.reduce((acc, g) => acc + (profile.genreWeights[g] || 0), 0) / gs.length
     : 0;
 
-  // year proximity (exp decay)
   const y = yearInt(m);
   const yearScore = Number.isFinite(y)
     ? Math.exp(-Math.abs(y - profile.meanYear) / 10)
     : 0.35;
 
-  // runtime proximity
   const rt = Number(m.runtime);
   const rtScore = Number.isFinite(rt)
     ? Math.exp(-Math.abs(rt - profile.meanRuntime) / 40)
     : 0.35;
 
-  // rating normalized
   const r = Number(m.vote_average);
   const ratingScore = Number.isFinite(r)
     ? Math.max(0, Math.min(1, r / 10))
     : 0.5;
 
-  // small popularity factor
   const p = Number(m.popularity);
   const popScore = Number.isFinite(p)
     ? Math.max(0, Math.min(1, Math.log1p(p) / 10))
     : 0.3;
 
-  // weighted sum
   return (
     0.55 * gScore +
     0.2 * yearScore +
@@ -518,18 +522,17 @@ function scoreMovie(m, profile) {
   );
 }
 
-/* ---------- Render Cards (same as your current, kept) ---------- */
+/* ---------- Cards ---------- */
 function renderCards(list) {
   els.cards.innerHTML = "";
 
   list.forEach((m, index) => {
-    cacheMovie(m);
+    cacheFavMovie(m); // ok to cache movie details for dialog & favorites
 
     const card = document.createElement("article");
     card.className = "card";
     card.tabIndex = 0;
     card.setAttribute("role", "button");
-    card.setAttribute("aria-label", `View details for ${safeTitle(m)}`);
     card.style.animationDelay = `${(index + 1) * 0.06}s`;
 
     const content = document.createElement("div");
@@ -540,14 +543,12 @@ function renderCards(list) {
     poster.src = posterSrc(m);
     poster.alt = `Poster: ${safeTitle(m)}`;
     poster.loading = "lazy";
-    poster.decoding = "async";
     content.appendChild(poster);
 
     const header = document.createElement("div");
     header.className = "card__header";
 
     const left = document.createElement("div");
-
     const title = document.createElement("h3");
     title.className = "card__title";
     title.textContent = safeTitle(m);
@@ -565,7 +566,7 @@ function renderCards(list) {
     actions.className = "card__actions";
 
     const fav = document.createElement("button");
-    fav.className = "iconbtn";
+    fav.className = "iconbtn iconbtn--heart";
     fav.type = "button";
     fav.textContent = favorites.has(String(m.id)) ? "♥" : "♡";
     fav.title = favorites.has(String(m.id))
@@ -573,10 +574,9 @@ function renderCards(list) {
       : "Add to favorites";
     fav.addEventListener("click", (e) => {
       e.stopPropagation();
-      cacheMovie(m);
-      toggleFav(m.id);
+      toggleFavorite(m.id);
       fav.textContent = favorites.has(String(m.id)) ? "♥" : "♡";
-      updateFavCount();
+      updateCounts();
       renderFav();
     });
 
@@ -625,12 +625,14 @@ function renderCards(list) {
   });
 }
 
+/* ---------- Chips (light mode readability) ---------- */
 function renderChips() {
   els.chips.innerHTML = "";
   const chips = [];
 
   const lang = (els.langSelect.value || "").trim();
   if (lang) chips.push(`Language: ${lang}`);
+
   if (selectedGenres.length) chips.push(`Genres: ${selectedGenres.join(", ")}`);
 
   const mr = (els.minRating.value || "").trim();
@@ -668,7 +670,9 @@ async function openDialog(id) {
 
   const local =
     (lastResults || []).find((x) => String(x.id) === String(id)) ||
-    favCache[String(id)];
+    favCache[String(id)] ||
+    prefsCache[String(id)];
+
   if (local) {
     renderDialog(local);
     els.dialog.showModal();
@@ -677,7 +681,7 @@ async function openDialog(id) {
 
   try {
     const m = await apiMovie(id);
-    cacheMovie(m);
+    cacheFavMovie(m);
     renderDialog(m);
     els.dialog.showModal();
   } catch (err) {
@@ -688,7 +692,8 @@ async function openDialog(id) {
 function renderDialogFromCacheOrState(id) {
   const m =
     (lastResults || []).find((x) => String(x.id) === String(id)) ||
-    favCache[String(id)];
+    favCache[String(id)] ||
+    prefsCache[String(id)];
   if (m) renderDialog(m);
 }
 
@@ -721,141 +726,180 @@ function renderDialog(m) {
 
   const isFav = favorites.has(String(m.id));
   els.dialogFavBtn.textContent = isFav ? "♥ Remove Favorite" : "♡ Add Favorite";
-  els.dialogFavBtn.title = isFav ? "Remove from favorites" : "Add to favorites";
 }
 
-/* ---------- Favorites ---------- */
-function toggleFav(id) {
+/* ---------- Favorites + Preferences storage ---------- */
+function toggleFavorite(id) {
   id = String(id);
   if (favorites.has(id)) favorites.delete(id);
   else favorites.add(id);
-  persistFav();
+  persistFavorites();
 }
 
-function persistFav() {
-  localStorage.setItem(STORAGE.fav, JSON.stringify([...favorites]));
+function togglePref(id) {
+  id = String(id);
+  if (prefs.has(id)) prefs.delete(id);
+  else prefs.add(id);
+  persistPrefs();
 }
 
-function cacheMovie(m) {
+function persistFavorites() {
+  localStorage.setItem(STORAGE.favorites, JSON.stringify([...favorites]));
+}
+function persistPrefs() {
+  localStorage.setItem(STORAGE.prefs, JSON.stringify([...prefs]));
+}
+
+function cacheFavMovie(m) {
   if (!m || !m.id) return;
   favCache[String(m.id)] = m;
   persistFavCache();
+}
+function cachePrefMovie(m) {
+  if (!m || !m.id) return;
+  prefsCache[String(m.id)] = m;
+  persistPrefsCache();
 }
 
 function persistFavCache() {
   localStorage.setItem(STORAGE.fav_cache, JSON.stringify(favCache));
 }
-
-function updateFavCount() {
-  els.favCount.textContent = String(favorites.size);
+function persistPrefsCache() {
+  localStorage.setItem(STORAGE.prefs_cache, JSON.stringify(prefsCache));
 }
 
+function updateCounts() {
+  if (els.favCount) els.favCount.textContent = String(favorites.size);
+  if (els.prefCount) els.prefCount.textContent = String(prefs.size);
+}
+
+/* ---------- Drawers ---------- */
 function openFavDrawer() {
   els.favDrawer.classList.add("open");
   els.favDrawer.setAttribute("aria-hidden", "false");
   renderFav();
 }
-
 function closeFavDrawer() {
   els.favDrawer.classList.remove("open");
   els.favDrawer.setAttribute("aria-hidden", "true");
 }
+function openPrefsDrawer() {
+  els.prefsDrawer.classList.add("open");
+  els.prefsDrawer.setAttribute("aria-hidden", "false");
+  renderPrefs();
+}
+function closePrefsDrawer() {
+  els.prefsDrawer.classList.remove("open");
+  els.prefsDrawer.setAttribute("aria-hidden", "true");
+}
 
+/* ---------- Render Favorites drawer ---------- */
 function renderFav() {
   els.favList.innerHTML = "";
-  const favIds = [...favorites];
+  const ids = [...favorites];
 
-  if (!favIds.length) {
-    const empty = document.createElement("div");
-    empty.className = "favitem";
-    empty.innerHTML = `
-      <h3 class="favitem__title">Your favorites collection is empty</h3>
-      <p class="favitem__sub">Click ♥ on any movie to add it here.</p>
-    `;
-    els.favList.appendChild(empty);
+  if (!ids.length) {
+    els.favList.innerHTML = `
+      <div class="favitem">
+        <h3 class="favitem__title">Your favorites collection is empty</h3>
+        <p class="favitem__sub">Use ♥ on any movie card to save it here.</p>
+      </div>`;
     return;
   }
 
-  const favs = favIds
-    .map((id) => favCache[id])
-    .filter(Boolean)
-    .sort((a, b) => Number(b.popularity ?? -1) - Number(a.popularity ?? -1));
+  const items = ids.map((id) => favCache[id]).filter(Boolean);
 
-  favs.forEach((m) => {
+  items.forEach((m) => {
     const box = document.createElement("div");
     box.className = "favitem";
-
-    const t = document.createElement("h3");
-    t.className = "favitem__title";
-    t.textContent = safeTitle(m);
-
-    const s = document.createElement("p");
-    s.className = "favitem__sub";
-    s.textContent = `${safeOriginal(m)} • ${(
+    box.innerHTML = `
+      <h3 class="favitem__title">${escapeHtml(safeTitle(m))}</h3>
+      <p class="favitem__sub">${escapeHtml(safeOriginal(m))} • ${(
       m.original_language || "??"
-    ).toUpperCase()} • ${m.release_date || "Unknown date"}`;
-
-    const row = document.createElement("div");
-    row.className = "favitem__row";
-
-    const open = document.createElement("button");
-    open.className = "btn btn--ghost";
-    open.type = "button";
-    open.textContent = "Details";
-    open.addEventListener("click", async () => await openDialog(m.id));
-
-    const rm = document.createElement("button");
-    rm.className = "btn btn--ghost";
-    rm.type = "button";
-    rm.textContent = "Remove";
-    rm.addEventListener("click", () => {
-      toggleFav(m.id);
-      updateFavCount();
+    ).toUpperCase()} • ${escapeHtml(m.release_date || "Unknown date")}</p>
+      <div class="favitem__row">
+        <button class="btn btn--ghost" type="button" data-open="1">Details</button>
+        <button class="btn btn--ghost" type="button" data-rm="1">Remove</button>
+      </div>
+    `;
+    box
+      .querySelector('[data-open="1"]')
+      .addEventListener("click", async () => await openDialog(m.id));
+    box.querySelector('[data-rm="1"]').addEventListener("click", () => {
+      toggleFavorite(m.id);
+      updateCounts();
       renderFav();
-      renderBoothPicksFromCache();
     });
-
-    row.appendChild(open);
-    row.appendChild(rm);
-
-    box.appendChild(t);
-    box.appendChild(s);
-    box.appendChild(row);
-
     els.favList.appendChild(box);
+  });
+}
+
+/* ---------- Render Preferences drawer ---------- */
+function renderPrefs() {
+  els.prefsList.innerHTML = "";
+  const ids = [...prefs];
+
+  if (!ids.length) {
+    els.prefsList.innerHTML = `
+      <div class="favitem">
+        <h3 class="favitem__title">No preferences yet</h3>
+        <p class="favitem__sub">Use ♥ in Booth Picks to help “Best for you”. Not required.</p>
+      </div>`;
+    return;
+  }
+
+  const items = ids.map((id) => prefsCache[id]).filter(Boolean);
+
+  items.forEach((m) => {
+    const box = document.createElement("div");
+    box.className = "favitem";
+    box.innerHTML = `
+      <h3 class="favitem__title">${escapeHtml(safeTitle(m))}</h3>
+      <p class="favitem__sub">${escapeHtml(safeOriginal(m))} • ${(
+      m.original_language || "??"
+    ).toUpperCase()} • ${escapeHtml(m.release_date || "Unknown date")}</p>
+      <div class="favitem__row">
+        <button class="btn btn--ghost" type="button" data-open="1">Details</button>
+        <button class="btn btn--ghost" type="button" data-rm="1">Remove</button>
+      </div>
+    `;
+    box
+      .querySelector('[data-open="1"]')
+      .addEventListener("click", async () => await openDialog(m.id));
+    box.querySelector('[data-rm="1"]').addEventListener("click", () => {
+      togglePref(m.id);
+      updateCounts();
+      renderPrefs();
+      repaintBoothPickHearts();
+    });
+    els.prefsList.appendChild(box);
   });
 }
 
 /* ---------- Genres ---------- */
 function addGenre(g) {
-  g = g.trim().toLowerCase();
   if (!g) return;
   if (selectedGenres.includes(g)) return;
   selectedGenres.push(g);
   renderTags();
 }
-
 function removeGenre(g) {
   selectedGenres = selectedGenres.filter((x) => x !== g);
   renderTags();
 }
-
 function renderTags() {
   els.tagList.innerHTML = "";
   selectedGenres.forEach((g) => {
     const t = document.createElement("span");
     t.className = "tag";
-    t.innerHTML = `<span>${g}</span>`;
-
+    t.innerHTML = `<span>${escapeHtml(g)}</span>`;
     const x = document.createElement("button");
     x.type = "button";
-    x.setAttribute("aria-label", `Remove ${g}`);
     x.textContent = "×";
     x.addEventListener("click", async () => {
       removeGenre(g);
       await updateGenreSuggestions();
     });
-
     t.appendChild(x);
     els.tagList.appendChild(t);
   });
@@ -863,8 +907,8 @@ function renderTags() {
 
 async function updateGenreSuggestions() {
   els.suggestions.innerHTML = "";
+  const lang = normalizeLang(els.langSelect.value);
 
-  const lang = (els.langSelect.value || "").trim().toLowerCase();
   if (!lang) {
     els.langInfo.textContent =
       "Language is required. Choose one to see available genres.";
@@ -874,7 +918,7 @@ async function updateGenreSuggestions() {
   let data;
   try {
     data = await apiGet(`/api/genres?lang=${encodeURIComponent(lang)}`);
-  } catch (err) {
+  } catch {
     els.langInfo.textContent = "Could not load genres.";
     return;
   }
@@ -900,56 +944,35 @@ async function updateGenreSuggestions() {
     });
 }
 
+/* ---------- Hydration ---------- */
 async function hydrateLanguages() {
   els.langSelect.innerHTML = `<option value="">— Choose a language —</option>`;
   const data = await apiGet("/api/languages");
-  const langs = (data.languages || []).slice().sort();
-
-  langs.forEach((l) => {
-    const opt = document.createElement("option");
-    opt.value = l;
-    opt.textContent = l;
-    els.langSelect.appendChild(opt);
-  });
-
+  (data.languages || [])
+    .slice()
+    .sort()
+    .forEach((l) => {
+      const opt = document.createElement("option");
+      opt.value = l;
+      opt.textContent = l;
+      els.langSelect.appendChild(opt);
+    });
   await updateGenreSuggestions();
 }
 
 async function hydrateLinguisticLevels() {
   els.linguisticLevel.innerHTML = `<option value="">Any level</option>`;
-
   let data;
   try {
     data = await apiGet("/api/linguistic_levels");
   } catch {
     return;
   }
-
-  const levels = (data.levels || []).slice();
-
-  const order = [
-    "beginner",
-    "elementary",
-    "intermediate",
-    "upper intermediate",
-    "advanced",
-    "proficient",
-  ];
-  levels.sort((a, b) => {
-    const ia = order.indexOf(String(a).toLowerCase());
-    const ib = order.indexOf(String(b).toLowerCase());
-    if (ia === -1 && ib === -1) return String(a).localeCompare(String(b));
-    if (ia === -1) return 1;
-    if (ib === -1) return -1;
-    return ia - ib;
-  });
-
+  const levels = (data.levels || []).slice().sort();
   levels.forEach((lvl) => {
-    const v = String(lvl).trim().toLowerCase();
-    if (!v) return;
     const opt = document.createElement("option");
-    opt.value = v;
-    opt.textContent = v.replace(/\b\w/g, (c) => c.toUpperCase());
+    opt.value = String(lvl).toLowerCase();
+    opt.textContent = String(lvl).replace(/\b\w/g, (c) => c.toUpperCase());
     els.linguisticLevel.appendChild(opt);
   });
 }
@@ -959,96 +982,104 @@ function initTheme() {
   const saved = localStorage.getItem(STORAGE.theme) || "dark";
   setTheme(saved);
 }
-
 function toggleTheme() {
   const cur = document.documentElement.getAttribute("data-theme") || "dark";
   setTheme(cur === "dark" ? "light" : "dark");
 }
-
 function setTheme(t) {
   document.documentElement.setAttribute("data-theme", t);
   localStorage.setItem(STORAGE.theme, t);
-  els.themeBtn.setAttribute("aria-pressed", t === "light" ? "true" : "false");
-  els.themeBtn.innerHTML = t === "dark" ? "🌙 Dark Mode" : "☀️ Light Mode";
-  els.themeBtn.title =
-    t === "dark" ? "Switch to light mode" : "Switch to dark mode";
+  if (els.themeBtn) {
+    els.themeBtn.setAttribute("aria-pressed", t === "light" ? "true" : "false");
+    els.themeBtn.innerHTML = t === "dark" ? "🌙 Dark Mode" : "☀️ Light Mode";
+  }
 }
 
 /* ---------- Helpers ---------- */
+function normalizeLang(v) {
+  return String(v || "")
+    .trim()
+    .toLowerCase();
+}
+function normalizeMaybe(v) {
+  const s = String(v || "").trim();
+  return s ? s.toLowerCase() : null;
+}
+function normalizeGenre(v) {
+  return String(v || "")
+    .trim()
+    .toLowerCase();
+}
 function badge(text) {
   const b = document.createElement("span");
   b.className = "badge";
   b.textContent = text;
   return b;
 }
-
 function yearFromDate(d) {
   if (!d) return "????";
-  const s = String(d);
-  const m = s.match(/\d{4}/);
+  const m = String(d).match(/\d{4}/);
   return m ? m[0] : "????";
 }
-
 function yearInt(m) {
   const y = parseInt(yearFromDate(m?.release_date), 10);
   return Number.isFinite(y) ? y : 0;
 }
-
 function extractGenres(m) {
-  // support various shapes
   const arr =
     m?.genre_list || m?.genres || (Array.isArray(m?.genres) ? m.genres : null);
-
-  if (Array.isArray(arr)) {
+  if (Array.isArray(arr))
     return arr.map((g) => String(g).toLowerCase().trim()).filter(Boolean);
-  }
   return [];
 }
-
 function safeTitle(m) {
   return m?.title || "Unknown title";
 }
-
 function safeOriginal(m) {
   return m?.original_title || "";
 }
-
 function fmt(n) {
   const x = Number(n);
   if (Number.isNaN(x)) return "N/A";
   return x.toFixed(1);
 }
-
+function num(v) {
+  const x = Number(v);
+  return Number.isFinite(x) ? x : -1;
+}
 function clampInt(v, a, b) {
   const n = parseInt(String(v), 10);
   if (Number.isNaN(n)) return null;
   return Math.max(a, Math.min(b, n));
 }
-
 function numOrNull(v) {
   const s = String(v || "").trim();
   if (!s) return null;
   const x = Number(s);
   return Number.isFinite(x) ? x : null;
 }
-
 function intOrNull(v) {
   const s = String(v || "").trim();
   if (!s) return null;
   const x = parseInt(s, 10);
   return Number.isFinite(x) ? x : null;
 }
-
 function mean(arr) {
   if (!arr || !arr.length) return null;
-  const s = arr.reduce((a, b) => a + b, 0);
-  return s / arr.length;
+  return arr.reduce((a, b) => a + b, 0) / arr.length;
 }
-
 function posterSrc(m) {
   if (m?.poster_url) return m.poster_url;
   if (m?.poster_path) return `https://image.tmdb.org/t/p/w342${m.poster_path}`;
   return "/static/placeholder-poster.png";
+}
+function escapeHtml(s) {
+  return String(s || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 /* ---------- Loader ---------- */
@@ -1059,18 +1090,14 @@ function showCinematicLoader() {
     <div class="loader-content">
       <div class="film-strip"></div>
       <div class="loader-text">PRINTING TICKET...</div>
-    </div>
-  `;
+    </div>`;
   document.body.appendChild(loader);
 
   return {
     remove: () => {
-      if (!loader.parentNode) return;
       loader.style.opacity = "0";
       loader.style.transition = "opacity 0.2s ease";
-      setTimeout(() => {
-        if (loader.parentNode) loader.parentNode.removeChild(loader);
-      }, 220);
+      setTimeout(() => loader.remove(), 220);
     },
   };
 }

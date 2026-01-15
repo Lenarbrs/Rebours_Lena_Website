@@ -1,4 +1,3 @@
-<!-- templates/index.html -->
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -7,7 +6,7 @@
     <title>CinéLingua — Cultural Film Recommendation</title>
     <meta
       name="description"
-      content="Choose a language (required), optionally pick favorites for personalization, then print your personalized movie ticket."
+      content="Choose a language (required), optionally pick preferences for personalization, then print your movie ticket."
     />
     <link
       rel="icon"
@@ -64,6 +63,15 @@
         </button>
 
         <button
+          id="openPrefsBtn"
+          class="btn btn--ghost"
+          type="button"
+          title="Edit preferences used for personalization"
+        >
+          ⚙️ Preferences <span id="prefCount" class="pill">0</span>
+        </button>
+
+        <button
           id="openFavBtn"
           class="btn btn--ghost"
           type="button"
@@ -81,13 +89,15 @@
             <h2 class="panel__title">🎟️ The Ticket Booth</h2>
             <p class="panel__sub">
               <strong>Language is required.</strong> Everything else is
-              optional. Pick a few famous favorites to improve
-              <em>“Best for you”</em>.
+              optional.
+              <br />
+              <strong>Preferences (optional)</strong> help the
+              <em>“Best for you”</em> sorting — but you can still print a ticket
+              without them.
             </p>
           </div>
 
           <form id="filters" class="form">
-            <!-- Language (required) -->
             <div class="field">
               <label class="label" for="langSelect"
                 >1) Language (required)</label
@@ -101,7 +111,7 @@
               </div>
             </div>
 
-            <!-- Booth Picks (global, shown after language is chosen) -->
+            <!-- Booth Picks (Preferences) -->
             <div class="booth-picks" id="tasteBlock" hidden>
               <div class="booth-picks__head">
                 <div>
@@ -109,30 +119,25 @@
                     ⭐ Booth Picks (famous films)
                   </h3>
                   <p class="booth-picks__sub">
+                    <strong>Tip:</strong> pick at least
+                    <strong>3</strong> preferences for better personalization.
+                    <br />
                     Optional: tap ♥ on movies you love. This trains the
-                    <em>“Best for you”</em> sorting. (The list is the same for
-                    everyone — independent of language.)
+                    <em>“Best for you”</em> sorting. (Same list for everyone,
+                    independent of language.)
                   </p>
                 </div>
-                <button
-                  id="refreshPicksBtn"
-                  class="btn btn--ghost"
-                  type="button"
-                >
-                  ↻ Refresh
+
+                <button id="clearPrefsBtn" class="btn btn--ghost" type="button">
+                  Clear all
                 </button>
               </div>
 
               <div id="boothPicks" class="picks-grid" aria-live="polite"></div>
-
-              <div class="hint" id="boothPicksHint">
-                Tip: pick at least 3 favorites for better personalization.
-              </div>
             </div>
 
-            <!-- Genres -->
             <div class="field">
-              <label class="label" for="genreInput">2) Genres (optional)</label>
+              <label class="label" for="genreInput">2) Genres</label>
 
               <div class="tagbox" id="tagbox">
                 <div
@@ -151,7 +156,6 @@
               ></div>
             </div>
 
-            <!-- Optional filters -->
             <div class="grid">
               <div class="field">
                 <label class="label" for="minRating">Minimum rating /10</label>
@@ -174,7 +178,7 @@
               </div>
 
               <div class="field">
-                <label class="label" for="yearMin">Year min (optional)</label>
+                <label class="label" for="yearMin">Year min</label>
                 <input
                   id="yearMin"
                   class="control"
@@ -184,7 +188,7 @@
               </div>
 
               <div class="field">
-                <label class="label" for="yearMax">Year max (optional)</label>
+                <label class="label" for="yearMax">Year max</label>
                 <input
                   id="yearMax"
                   class="control"
@@ -233,7 +237,8 @@
             <div>
               <h2 class="panel__title">📽️ The Cinema Screen</h2>
               <p id="resultsMeta" class="panel__sub">
-                Your personalized film recommendations will appear here
+                Your movie recommendations will appear here (preferences are
+                optional).
               </p>
             </div>
 
@@ -304,6 +309,7 @@
       </form>
     </dialog>
 
+    <!-- Favorites drawer -->
     <aside id="favDrawer" class="drawer" aria-hidden="true">
       <div class="drawer__head">
         <h2 class="drawer__title">♥ My Favorites</h2>
@@ -316,6 +322,24 @@
 
       <div class="drawer__foot">
         <button id="clearFavBtn" class="btn btn--ghost" type="button">
+          Clear All
+        </button>
+      </div>
+    </aside>
+
+    <!-- Preferences drawer -->
+    <aside id="prefsDrawer" class="drawer" aria-hidden="true">
+      <div class="drawer__head">
+        <h2 class="drawer__title">⚙️ Preferences (for “Best for you”)</h2>
+        <button id="closePrefsBtn" class="btn btn--ghost" type="button">
+          Close
+        </button>
+      </div>
+
+      <div class="fav" id="prefsList"></div>
+
+      <div class="drawer__foot">
+        <button id="clearPrefsDrawerBtn" class="btn btn--ghost" type="button">
           Clear All
         </button>
       </div>
