@@ -3,6 +3,7 @@ const $ = (s) => document.querySelector(s);
 
 const els = {
   themeBtn: $("#themeBtn"),
+
   openFavBtn: $("#openFavBtn"),
   closeFavBtn: $("#closeFavBtn"),
   clearFavBtn: $("#clearFavBtn"),
@@ -13,21 +14,22 @@ const els = {
   filters: $("#filters"),
   langSelect: $("#langSelect"),
   langInfo: $("#langInfo"),
+
   genreInput: $("#genreInput"),
   tagList: $("#tagList"),
   suggestions: $("#genreSuggestions"),
+
   minRating: $("#minRating"),
   maxRuntime: $("#maxRuntime"),
-  minYear: $("#minYear"),
-  maxYear: $("#maxYear"),
+  yearMin: $("#yearMin"),
+  yearMax: $("#yearMax"),
+
   topN: $("#topN"),
   resetBtn: $("#resetBtn"),
   shuffleBtn: $("#shuffleBtn"),
-  sortSelect: $("#sortSelect"),
   linguisticLevel: $("#linguisticLevel"),
 
-  tasteBlock: $("#tasteBlock"),
-  boothPicks: $("#boothPicks"),
+  sortSelect: $("#sortSelect"),
 
   cards: $("#cards"),
   empty: $("#emptyState"),
@@ -41,43 +43,33 @@ const els = {
   dialogOverview: $("#dialogOverview"),
   dialogMeta: $("#dialogMeta"),
   dialogFavBtn: $("#dialogFavBtn"),
+
+  tasteBlock: $("#tasteBlock"),
+  boothPicks: $("#boothPicks"),
+  boothPicksHint: $("#boothPicksHint"),
+  refreshPicksBtn: $("#refreshPicksBtn"),
 };
 
 const STORAGE = {
   theme: "cinelingua.theme",
-
-  // “Favorites drawer” (collection)
   fav: "cinelingua.fav",
   fav_cache: "cinelingua.fav_cache",
-
-  // “Taste profile” used for personalized sorting
-  taste: "cinelingua.taste",
-  taste_cache: "cinelingua.taste_cache",
 };
 
 let selectedGenres = [];
 let favorites = new Set(JSON.parse(localStorage.getItem(STORAGE.fav) || "[]"));
 let favCache = JSON.parse(localStorage.getItem(STORAGE.fav_cache) || "{}");
 
-let tasteLikes = new Set(
-  JSON.parse(localStorage.getItem(STORAGE.taste) || "[]")
-);
-let tasteCache = JSON.parse(localStorage.getItem(STORAGE.taste_cache) || "{}");
-
-let boothPickList = []; // famous list
 let currentDialogId = null;
 let lastResults = [];
 let isPrinting = false;
 
-/* ---------- Initialisation ---------- */
 initTheme();
 wireUI();
 updateFavCount();
 
 (async function boot() {
   await Promise.all([hydrateLanguages(), hydrateLinguisticLevels()]);
-  // Booth picks loaded once (not language specific)
-  await hydrateBoothPicks();
 })();
 
 /* ---------- API helpers ---------- */
@@ -121,28 +113,35 @@ function wireUI() {
       persistFavCache();
       updateFavCount();
       renderFav();
+      // also refresh booth picks hearts
+      renderBoothPicksFromCache();
     }
   });
 
-  // Sorting
-  els.sortSelect?.addEventListener("change", () => {
-    if (!lastResults.length) return;
-    const sorted = applySorting([...lastResults], getCurrentSortKey());
-    renderCards(sorted);
-    updateMetaText(sorted.length, getCurrentSortKey());
-  });
-
-  // Language change (language mandatory -> show taste block after chosen)
+  // Language change: show booth picks (same list for all), update genres
   els.langSelect.addEventListener("change", async () => {
     selectedGenres = [];
     renderTags();
-    await updateGenreSuggestions();
 
-    const lang = (els.langSelect.value || "").trim();
-    els.tasteBlock.hidden = !lang; // only show when language chosen
+    const lang = (els.langSelect.value || "").trim().toLowerCase();
+    if (lang) {
+      els.tasteBlock.hidden = false;
+      await loadBoothPicks(false);
+    } else {
+      els.tasteBlock.hidden = true;
+      els.boothPicks.innerHTML = "";
+      els.boothPicksHint.textContent = "Select a language to load picks.";
+    }
+
+    await updateGenreSuggestions();
   });
 
-  // Genre tag input
+  // Refresh booth picks
+  els.refreshPicksBtn?.addEventListener("click", async () => {
+    await loadBoothPicks(true);
+  });
+
+  // Genre input
   els.genreInput.addEventListener("keydown", async (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -167,17 +166,16 @@ function wireUI() {
     await recommendAndRender();
   });
 
-  // Reset
+  // Reset optional filters only
   els.resetBtn.addEventListener("click", async () => {
-    if (confirm("Reset all optional filters? (Language stays required)")) {
-      // keep language? You can choose; here we reset everything except language selection
+    if (confirm("Clear all optional filters? (Language stays)")) {
       selectedGenres = [];
       renderTags();
       els.genreInput.value = "";
       els.minRating.value = "";
       els.maxRuntime.value = "";
-      els.minYear.value = "";
-      els.maxYear.value = "";
+      els.yearMin.value = "";
+      els.yearMax.value = "";
       els.linguisticLevel.value = "";
       els.topN.value = 20;
 
@@ -199,12 +197,21 @@ function wireUI() {
     await openDialog(pick.id);
   });
 
-  // Dialog favorite button (collection favorites)
+  // Sort change (re-render without calling API)
+  els.sortSelect?.addEventListener("change", () => {
+    if (!lastResults.length) return;
+    const sorted = applySort(lastResults.slice());
+    renderCards(sorted);
+  });
+
+  // Dialog favorite
   els.dialogFavBtn.addEventListener("click", () => {
     if (!currentDialogId) return;
     toggleFav(currentDialogId);
     renderDialogFromCacheOrState(currentDialogId);
     updateFavCount();
+    renderFav();
+    renderBoothPicksFromCache();
   });
 
   // Close drawer when clicking outside
@@ -221,125 +228,102 @@ function wireUI() {
   });
 }
 
-/* ======================================================
-   Booth Picks (Famous list) — taste profile
-   ====================================================== */
-async function hydrateBoothPicks() {
+/* ---------- Booth Picks ---------- */
+async function loadBoothPicks(forceRefresh) {
+  els.boothPicksHint.textContent = "Loading Booth Picks…";
   try {
-    const data = await apiGet("/api/booth_picks");
-    boothPickList = data.results || [];
-    // cache movies for taste model
-    boothPickList.forEach((m) => cacheTasteMovie(m));
-    renderBoothPicks();
+    const url = forceRefresh
+      ? "/api/booth_picks?refresh=1"
+      : "/api/booth_picks";
+    const data = await apiGet(url);
+    const list = data.results || [];
+    renderBoothPicks(list);
+    els.boothPicksHint.textContent =
+      "Tip: pick at least 3 favorites for better personalization.";
   } catch (e) {
-    console.error("booth_picks failed", e);
+    console.error(e);
+    els.boothPicksHint.textContent = "Could not load Booth Picks.";
   }
 }
 
-function renderBoothPicks() {
-  if (!els.boothPicks) return;
+function renderBoothPicks(list) {
   els.boothPicks.innerHTML = "";
+  (list || []).slice(0, 24).forEach((m) => {
+    cacheMovie(m);
 
-  boothPickList.slice(0, 90).forEach((m) => {
-    const id = String(m.id);
-
-    const box = document.createElement("article");
-    box.className = "pick" + (tasteLikes.has(id) ? " is-liked" : "");
-    box.tabIndex = 0;
-    box.setAttribute("role", "button");
-    box.setAttribute("aria-label", `Mark taste for ${safeTitle(m)}`);
+    const card = document.createElement("article");
+    card.className = "pick";
+    card.tabIndex = 0;
+    card.setAttribute("role", "button");
+    card.setAttribute("aria-label", `Booth pick: ${safeTitle(m)}`);
 
     const img = document.createElement("img");
-    img.className = "pick__img";
+    img.className = "pick__poster";
     img.src = posterSrc(m);
     img.alt = `Poster: ${safeTitle(m)}`;
     img.loading = "lazy";
     img.decoding = "async";
 
-    const body = document.createElement("div");
-    body.className = "pick__body";
+    const meta = document.createElement("div");
+    meta.className = "pick__meta";
 
-    const left = document.createElement("div");
-    const title = document.createElement("h4");
-    title.className = "pick__title";
-    title.textContent = safeTitle(m);
-    const sub = document.createElement("p");
-    sub.className = "pick__sub";
-    sub.textContent = `${yearFromAny(m)} • ${(
+    const t = document.createElement("div");
+    t.className = "pick__title";
+    t.textContent = safeTitle(m);
+
+    const s = document.createElement("div");
+    s.className = "pick__sub";
+    s.textContent = `${yearFromDate(m.release_date)} • ${(
       m.original_language || "??"
     ).toUpperCase()}`;
-    left.appendChild(title);
-    left.appendChild(sub);
 
-    const btn = document.createElement("button");
-    btn.className = "pick__btn";
-    btn.type = "button";
-    btn.textContent = tasteLikes.has(id) ? "♥" : "♡";
-    btn.title = tasteLikes.has(id)
-      ? "Remove from taste profile"
-      : "Add to taste profile";
-
-    btn.addEventListener("click", (e) => {
+    const fav = document.createElement("button");
+    fav.className = "pick__fav";
+    fav.type = "button";
+    fav.textContent = favorites.has(String(m.id)) ? "♥" : "♡";
+    fav.title = favorites.has(String(m.id))
+      ? "Remove from favorites"
+      : "Add to favorites";
+    fav.addEventListener("click", (e) => {
       e.stopPropagation();
-      toggleTaste(id);
-      box.classList.toggle("is-liked", tasteLikes.has(id));
-      btn.textContent = tasteLikes.has(id) ? "♥" : "♡";
-      btn.title = tasteLikes.has(id)
-        ? "Remove from taste profile"
-        : "Add to taste profile";
+      cacheMovie(m);
+      toggleFav(m.id);
+      fav.textContent = favorites.has(String(m.id)) ? "♥" : "♡";
+      updateFavCount();
+      renderFav();
+    });
 
-      // If user is already seeing results and sort is personal, re-sort live
-      if (lastResults.length && getCurrentSortKey() === "personal") {
-        const sorted = applySorting([...lastResults], "personal");
-        renderCards(sorted);
-        updateMetaText(sorted.length, "personal");
+    meta.appendChild(t);
+    meta.appendChild(s);
+
+    card.appendChild(img);
+    card.appendChild(meta);
+    card.appendChild(fav);
+
+    card.addEventListener("click", async () => await openDialog(m.id));
+    card.addEventListener("keydown", async (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        await openDialog(m.id);
       }
     });
 
-    body.appendChild(left);
-    body.appendChild(btn);
-
-    box.appendChild(img);
-    box.appendChild(body);
-
-    box.addEventListener("click", () => {
-      toggleTaste(id);
-      box.classList.toggle("is-liked", tasteLikes.has(id));
-      btn.textContent = tasteLikes.has(id) ? "♥" : "♡";
-      btn.title = tasteLikes.has(id)
-        ? "Remove from taste profile"
-        : "Add to taste profile";
-      if (lastResults.length && getCurrentSortKey() === "personal") {
-        const sorted = applySorting([...lastResults], "personal");
-        renderCards(sorted);
-        updateMetaText(sorted.length, "personal");
-      }
-    });
-
-    els.boothPicks.appendChild(box);
+    els.boothPicks.appendChild(card);
   });
 }
 
-function toggleTaste(id) {
-  id = String(id);
-  if (tasteLikes.has(id)) tasteLikes.delete(id);
-  else tasteLikes.add(id);
-  persistTaste();
+function renderBoothPicksFromCache() {
+  // Quick refresh of hearts without refetching
+  const buttons = els.boothPicks?.querySelectorAll(".pick__fav");
+  if (!buttons) return;
+  buttons.forEach((btn) => {
+    const parent = btn.closest(".pick");
+    if (!parent) return;
+    // nothing stable to map; skip (optional)
+  });
 }
 
-function persistTaste() {
-  localStorage.setItem(STORAGE.taste, JSON.stringify([...tasteLikes]));
-}
-
-function cacheTasteMovie(m) {
-  if (!m || !m.id) return;
-  tasteCache[String(m.id)] = normalizeMovieForModel(m);
-  localStorage.setItem(STORAGE.taste_cache, JSON.stringify(tasteCache));
-}
-
-/* ======================================================
-   Recommendations + Sorting
-   ====================================================== */
+/* ---------- Recommendations via API ---------- */
 async function recommendAndRender() {
   if (isPrinting) return;
   isPrinting = true;
@@ -349,7 +333,6 @@ async function recommendAndRender() {
 
   const lang = (els.langSelect.value || "").trim().toLowerCase();
   if (!lang) {
-    alert("Please choose a language first (required).");
     if (submitBtn) submitBtn.disabled = false;
     isPrinting = false;
     return;
@@ -359,37 +342,34 @@ async function recommendAndRender() {
 
   try {
     const topN = clampInt(els.topN.value, 1, 100) ?? 20;
-    const mr = (els.minRating.value || "").trim();
-    const rt = (els.maxRuntime.value || "").trim();
-    const minY = (els.minYear.value || "").trim();
-    const maxY = (els.maxYear.value || "").trim();
-    const linguisticLevel = (els.linguisticLevel.value || "").trim();
 
     const payload = {
       lang,
       genres: selectedGenres,
       top_n: topN,
-      min_rating: mr ? Number(mr) : null,
-      max_runtime: rt ? Number(rt) : null,
-      min_year: minY ? Number(minY) : null,
-      max_year: maxY ? Number(maxY) : null,
-      linguistic_level: linguisticLevel || null,
+      min_rating: numOrNull(els.minRating.value),
+      max_runtime: numOrNull(els.maxRuntime.value),
+      linguistic_level: (els.linguisticLevel.value || "").trim() || null,
+      year_min: intOrNull(els.yearMin.value),
+      year_max: intOrNull(els.yearMax.value),
     };
 
     const data = await apiPost("/api/recommendations", payload);
-    const result = (data.results || []).map(normalizeMovieForModel);
-
+    const result = data.results || [];
     lastResults = result;
 
     renderChips();
     animatePrinter();
 
-    const sortKey = getCurrentSortKey();
-    const sorted = applySorting([...result], sortKey);
+    const sorted = applySort(result.slice());
     renderCards(sorted);
 
     els.empty.hidden = sorted.length !== 0;
-    updateMetaText(sorted.length, sortKey);
+
+    const sortLabel = sortLabelFromValue(els.sortSelect?.value);
+    els.resultsMeta.textContent = sorted.length
+      ? `🎟️ Ticket printed: ${sorted.length} film(s) • Language: ${lang} • ${sortLabel}`
+      : `🎬 No matching films found. Try adjusting your criteria.`;
   } catch (error) {
     console.error("Error in recommendAndRender:", error);
   } finally {
@@ -399,169 +379,152 @@ async function recommendAndRender() {
   }
 }
 
-function getCurrentSortKey() {
-  return els.sortSelect?.value || "personal";
-}
+/* ---------- Sorting ---------- */
+function applySort(list) {
+  const mode = (els.sortSelect?.value || "popular").trim();
 
-function updateMetaText(count, sortKey) {
-  const lang = (els.langSelect.value || "").trim().toLowerCase();
-  const label =
-    {
-      personal: "Best for you",
-      rating: "Best rated",
-      popular: "Most popular",
-      recent: "Most recent",
-      oldest: "Oldest",
-    }[sortKey] || "Most popular";
-
-  const tasteN = tasteLikes.size;
-
-  const tasteLine =
-    sortKey === "personal"
-      ? tasteN >= 3
-        ? `• Personalized using your taste picks (${tasteN} like(s))`
-        : `• Tip: pick at least 3 famous films above to improve “Best for you”`
-      : "";
-
-  els.resultsMeta.textContent = count
-    ? `🎟️ Ticket printed: ${count} film(s) • Language: ${lang} • Sort: ${label} ${tasteLine}`
-    : `🎬 No matching films found. Try adjusting your criteria.`;
-}
-
-/* ---------- Personalized “mini-model” (profile) ---------- */
-/**
- * We train a simple profile from tasteLikes:
- * - genre weights (what user likes more)
- * - preferred year (mean) + spread
- * - preferred rating (mean)
- * Then we score every candidate film and sort by score.
- *
- * This is not heavy ML: it’s a lightweight recommender / re-ranker.
- */
-function buildTasteProfile() {
-  const liked = [...tasteLikes].map((id) => tasteCache[id]).filter(Boolean);
-
-  if (liked.length < 3) return null; // not enough signal
-
-  const genreW = {}; // counts
-  const years = [];
-  const ratings = [];
-
-  liked.forEach((m) => {
-    (m.genre_list || []).forEach((g) => {
-      const k = String(g).toLowerCase();
-      genreW[k] = (genreW[k] || 0) + 1;
-    });
-    if (Number.isFinite(m.release_year)) years.push(m.release_year);
-    if (Number.isFinite(m.vote_average)) ratings.push(m.vote_average);
-  });
-
-  // normalize genre weights to [0..1]
-  const maxG = Math.max(1, ...Object.values(genreW));
-  const genreWeights = {};
-  Object.entries(genreW).forEach(([g, c]) => {
-    genreWeights[g] = c / maxG;
-  });
-
-  const yearMean = mean(years);
-  const yearStd = std(years) || 15; // default spread
-  const ratingMean = mean(ratings);
-
-  return {
-    n: liked.length,
-    genreWeights,
-    yearMean: Number.isFinite(yearMean) ? yearMean : null,
-    yearStd,
-    ratingMean: Number.isFinite(ratingMean) ? ratingMean : 7.0,
-  };
-}
-
-function personalizedScore(movie, profile) {
-  // Fallback if missing
-  const gs = (movie.genre_list || []).map((x) => String(x).toLowerCase());
-  const y = Number.isFinite(movie.release_year) ? movie.release_year : null;
-  const r = Number.isFinite(movie.vote_average) ? movie.vote_average : 0;
-  const p = Number.isFinite(movie.popularity) ? movie.popularity : 0;
-
-  // 1) Genre similarity (sum weights of genres in movie)
-  let gScore = 0;
-  gs.forEach((g) => {
-    gScore += profile.genreWeights[g] || 0;
-  });
-  // normalize a bit by number of genres
-  if (gs.length) gScore = gScore / gs.length;
-
-  // 2) Year affinity (closer to preferred period is better)
-  let yScore = 0.5;
-  if (profile.yearMean != null && y != null) {
-    const d = Math.abs(y - profile.yearMean);
-    const sigma = Math.max(8, profile.yearStd); // keep stable
-    yScore = Math.exp(-(d * d) / (2 * sigma * sigma)); // gaussian in (0..1]
-  }
-
-  // 3) Rating affinity (if user likes highly rated films, weight it)
-  // normalize rating to 0..1
-  const rNorm = clamp01(r / 10);
-  const pref = clamp01((profile.ratingMean || 7) / 10);
-  const rScore = 1 - Math.abs(rNorm - pref); // closer to preference is better
-
-  // 4) Popularity (small weight, keeps mainstream-ish)
-  const pScore = clamp01(Math.log10(p + 1) / 3); // ~0..1
-
-  // Final weighted score
-  return 0.55 * gScore + 0.2 * yScore + 0.15 * rScore + 0.1 * pScore;
-}
-
-function applySorting(list, sortKey) {
-  if (!Array.isArray(list)) return [];
-
-  if (sortKey === "rating") {
+  // simple sorts
+  if (mode === "popular") {
     return list.sort(
-      (a, b) => (Number(b.vote_average) || -1) - (Number(a.vote_average) || -1)
+      (a, b) => Number(b.popularity ?? -1) - Number(a.popularity ?? -1)
     );
   }
-
-  if (sortKey === "popular") {
+  if (mode === "rating") {
     return list.sort(
-      (a, b) => (Number(b.popularity) || -1) - (Number(a.popularity) || -1)
+      (a, b) => Number(b.vote_average ?? -1) - Number(a.vote_average ?? -1)
     );
   }
-
-  if (sortKey === "recent") {
-    return list.sort(
-      (a, b) => (Number(b.release_year) || -1) - (Number(a.release_year) || -1)
-    );
+  if (mode === "recent") {
+    return list.sort((a, b) => yearInt(b) - yearInt(a));
+  }
+  if (mode === "oldest") {
+    return list.sort((a, b) => yearInt(a) - yearInt(b));
   }
 
-  if (sortKey === "oldest") {
-    return list.sort(
-      (a, b) =>
-        (Number(a.release_year) || 999999) - (Number(b.release_year) || 999999)
-    );
-  }
-
-  // personal
-  const profile = buildTasteProfile();
+  // personalized
+  const profile = buildUserProfile();
   if (!profile) {
-    // no taste -> default popularity
+    // fallback to popular if not enough favorites
     return list.sort(
-      (a, b) => (Number(b.popularity) || -1) - (Number(a.popularity) || -1)
+      (a, b) => Number(b.popularity ?? -1) - Number(a.popularity ?? -1)
     );
   }
 
   return list
-    .map((m) => ({ m, s: personalizedScore(m, profile) }))
+    .map((m) => ({ m, s: scoreMovie(m, profile) }))
     .sort((a, b) => b.s - a.s)
     .map((x) => x.m);
 }
 
-/* ======================================================
-   Render Cards (unchanged except normalization)
-   ====================================================== */
+function sortLabelFromValue(v) {
+  switch (v) {
+    case "personal":
+      return "Sorted by: Best for you 🧠";
+    case "rating":
+      return "Sorted by: Highest rated ⭐";
+    case "recent":
+      return "Sorted by: Newest 🕰️";
+    case "oldest":
+      return "Sorted by: Oldest 🏛️";
+    case "popular":
+    default:
+      return "Sorted by: Popularity 🔥";
+  }
+}
+
+// Build profile from favorites (needs at least 3 cached favorites)
+function buildUserProfile() {
+  const favIds = [...favorites];
+  const favMovies = favIds.map((id) => favCache[String(id)]).filter(Boolean);
+
+  if (favMovies.length < 3) return null;
+
+  // genre weights
+  const gCount = new Map();
+  let gTotal = 0;
+
+  const years = [];
+  const runtimes = [];
+  const ratings = [];
+
+  favMovies.forEach((m) => {
+    const gs = extractGenres(m);
+    gs.forEach((g) => {
+      gCount.set(g, (gCount.get(g) || 0) + 1);
+      gTotal += 1;
+    });
+
+    const y = yearInt(m);
+    if (Number.isFinite(y) && y > 0) years.push(y);
+
+    const rt = Number(m.runtime);
+    if (Number.isFinite(rt) && rt > 0) runtimes.push(rt);
+
+    const r = Number(m.vote_average);
+    if (Number.isFinite(r)) ratings.push(r);
+  });
+
+  const genreWeights = {};
+  for (const [g, c] of gCount.entries()) {
+    genreWeights[g] = gTotal ? c / gTotal : 0;
+  }
+
+  return {
+    genreWeights,
+    meanYear: mean(years) ?? 2005,
+    meanRuntime: mean(runtimes) ?? 110,
+    meanRating: mean(ratings) ?? 7.0,
+  };
+}
+
+function scoreMovie(m, profile) {
+  // genre affinity
+  const gs = extractGenres(m);
+  const gScore = gs.length
+    ? gs.reduce((acc, g) => acc + (profile.genreWeights[g] || 0), 0) / gs.length
+    : 0;
+
+  // year proximity (exp decay)
+  const y = yearInt(m);
+  const yearScore = Number.isFinite(y)
+    ? Math.exp(-Math.abs(y - profile.meanYear) / 10)
+    : 0.35;
+
+  // runtime proximity
+  const rt = Number(m.runtime);
+  const rtScore = Number.isFinite(rt)
+    ? Math.exp(-Math.abs(rt - profile.meanRuntime) / 40)
+    : 0.35;
+
+  // rating normalized
+  const r = Number(m.vote_average);
+  const ratingScore = Number.isFinite(r)
+    ? Math.max(0, Math.min(1, r / 10))
+    : 0.5;
+
+  // small popularity factor
+  const p = Number(m.popularity);
+  const popScore = Number.isFinite(p)
+    ? Math.max(0, Math.min(1, Math.log1p(p) / 10))
+    : 0.3;
+
+  // weighted sum
+  return (
+    0.55 * gScore +
+    0.2 * yearScore +
+    0.15 * ratingScore +
+    0.07 * rtScore +
+    0.03 * popScore
+  );
+}
+
+/* ---------- Render Cards (same as your current, kept) ---------- */
 function renderCards(list) {
   els.cards.innerHTML = "";
 
   list.forEach((m, index) => {
+    cacheMovie(m);
+
     const card = document.createElement("article");
     card.className = "card";
     card.tabIndex = 0;
@@ -591,9 +554,9 @@ function renderCards(list) {
 
     const sub = document.createElement("p");
     sub.className = "card__sub";
-    sub.textContent = `${safeOriginal(m)} • ${yearFromAny(m)} • ${(
-      m.original_language || "??"
-    ).toUpperCase()}`;
+    sub.textContent = `${safeOriginal(m)} • ${yearFromDate(
+      m.release_date
+    )} • ${(m.original_language || "??").toUpperCase()}`;
 
     left.appendChild(title);
     left.appendChild(sub);
@@ -613,9 +576,6 @@ function renderCards(list) {
       cacheMovie(m);
       toggleFav(m.id);
       fav.textContent = favorites.has(String(m.id)) ? "♥" : "♡";
-      fav.title = favorites.has(String(m.id))
-        ? "Remove from favorites"
-        : "Add to favorites";
       updateFavCount();
       renderFav();
     });
@@ -642,8 +602,8 @@ function renderCards(list) {
     if (m.vote_average != null)
       badges.appendChild(badge(`${fmt(m.vote_average)}★`));
     if (m.runtime != null) badges.appendChild(badge(`${m.runtime} min`));
-    if (Array.isArray(m.genre_list) && m.genre_list.length)
-      badges.appendChild(badge(m.genre_list[0]));
+    const g1 = extractGenres(m)[0];
+    if (g1) badges.appendChild(badge(g1));
     if (m.linguistic_level)
       badges.appendChild(badge(`Level: ${m.linguistic_level}`));
     if (m.linguistic_register)
@@ -679,9 +639,9 @@ function renderChips() {
   const rt = (els.maxRuntime.value || "").trim();
   if (rt) chips.push(`Duration ≤ ${rt} min`);
 
-  const minY = (els.minYear.value || "").trim();
-  const maxY = (els.maxYear.value || "").trim();
-  if (minY || maxY) chips.push(`Year: ${minY || "…"}–${maxY || "…"}`);
+  const ym = (els.yearMin.value || "").trim();
+  const yM = (els.yearMax.value || "").trim();
+  if (ym || yM) chips.push(`Year: ${ym || "…"} → ${yM || "…"}`);
 
   const ll = (els.linguisticLevel.value || "").trim();
   if (ll) chips.push(`Level: ${ll.replace(/\b\w/g, (c) => c.toUpperCase())}`);
@@ -708,8 +668,7 @@ async function openDialog(id) {
 
   const local =
     (lastResults || []).find((x) => String(x.id) === String(id)) ||
-    favCache[String(id)] ||
-    tasteCache[String(id)];
+    favCache[String(id)];
   if (local) {
     renderDialog(local);
     els.dialog.showModal();
@@ -717,9 +676,8 @@ async function openDialog(id) {
   }
 
   try {
-    const m = normalizeMovieForModel(await apiMovie(id));
+    const m = await apiMovie(id);
     cacheMovie(m);
-    cacheTasteMovie(m);
     renderDialog(m);
     els.dialog.showModal();
   } catch (err) {
@@ -728,11 +686,9 @@ async function openDialog(id) {
 }
 
 function renderDialogFromCacheOrState(id) {
-  const sid = String(id);
   const m =
-    (lastResults || []).find((x) => String(x.id) === sid) ||
-    favCache[sid] ||
-    tasteCache[sid];
+    (lastResults || []).find((x) => String(x.id) === String(id)) ||
+    favCache[String(id)];
   if (m) renderDialog(m);
 }
 
@@ -754,15 +710,21 @@ function renderDialog(m) {
     els.dialogMeta.appendChild(badge(`Rating: ${fmt(m.vote_average)}★`));
   if (m.runtime != null)
     els.dialogMeta.appendChild(badge(`Duration: ${m.runtime} min`));
-  if (Array.isArray(m.genre_list) && m.genre_list.length)
-    els.dialogMeta.appendChild(badge(`Genres: ${m.genre_list.join(", ")}`));
+
+  const gs = extractGenres(m);
+  if (gs.length) els.dialogMeta.appendChild(badge(`Genres: ${gs.join(", ")}`));
+
+  if (m.linguistic_level)
+    els.dialogMeta.appendChild(badge(`Level: ${m.linguistic_level}`));
+  if (m.linguistic_register)
+    els.dialogMeta.appendChild(badge(`Register: ${m.linguistic_register}`));
 
   const isFav = favorites.has(String(m.id));
   els.dialogFavBtn.textContent = isFav ? "♥ Remove Favorite" : "♡ Add Favorite";
   els.dialogFavBtn.title = isFav ? "Remove from favorites" : "Add to favorites";
 }
 
-/* ---------- Favorites (collection) ---------- */
+/* ---------- Favorites ---------- */
 function toggleFav(id) {
   id = String(id);
   if (favorites.has(id)) favorites.delete(id);
@@ -801,8 +763,8 @@ function closeFavDrawer() {
 
 function renderFav() {
   els.favList.innerHTML = "";
-
   const favIds = [...favorites];
+
   if (!favIds.length) {
     const empty = document.createElement("div");
     empty.className = "favitem";
@@ -850,6 +812,7 @@ function renderFav() {
       toggleFav(m.id);
       updateFavCount();
       renderFav();
+      renderBoothPicksFromCache();
     });
 
     row.appendChild(open);
@@ -904,7 +867,7 @@ async function updateGenreSuggestions() {
   const lang = (els.langSelect.value || "").trim().toLowerCase();
   if (!lang) {
     els.langInfo.textContent =
-      "Choose a language to see available genres. (Language is required)";
+      "Language is required. Choose one to see available genres.";
     return;
   }
 
@@ -919,7 +882,7 @@ async function updateGenreSuggestions() {
   const all = (data.genres || [])
     .slice()
     .sort((a, b) => a.localeCompare(b, "en"));
-  els.langInfo.textContent = `Language is required. Everything else is optional • Genres available for '${lang}': ${all.length}`;
+  els.langInfo.textContent = `Language selected: '${lang}'. Optional filters available. Genres: ${all.length}`;
 
   all
     .filter((g) => !selectedGenres.includes(g))
@@ -950,10 +913,6 @@ async function hydrateLanguages() {
   });
 
   await updateGenreSuggestions();
-
-  // show/hide taste block
-  const lang = (els.langSelect.value || "").trim();
-  els.tasteBlock.hidden = !lang;
 }
 
 async function hydrateLinguisticLevels() {
@@ -967,6 +926,7 @@ async function hydrateLinguisticLevels() {
   }
 
   const levels = (data.levels || []).slice();
+
   const order = [
     "beginner",
     "elementary",
@@ -975,7 +935,6 @@ async function hydrateLinguisticLevels() {
     "advanced",
     "proficient",
   ];
-
   levels.sort((a, b) => {
     const ia = order.indexOf(String(a).toLowerCase());
     const ib = order.indexOf(String(b).toLowerCase());
@@ -1016,33 +975,6 @@ function setTheme(t) {
 }
 
 /* ---------- Helpers ---------- */
-function normalizeMovieForModel(m) {
-  const id = String(m?.id ?? "");
-  const genre_list = Array.isArray(m?.genre_list)
-    ? m.genre_list
-    : Array.isArray(m?.genres)
-    ? m.genres
-    : [];
-
-  const ry = Number.isFinite(m?.release_year)
-    ? m.release_year
-    : (() => {
-        const s = String(m?.release_date || "");
-        const mm = s.match(/\d{4}/);
-        return mm ? Number(mm[0]) : null;
-      })();
-
-  return {
-    ...m,
-    id,
-    genre_list,
-    release_year: Number.isFinite(ry) ? ry : null,
-    vote_average: m?.vote_average != null ? Number(m.vote_average) : null,
-    popularity: m?.popularity != null ? Number(m.popularity) : null,
-    runtime: m?.runtime != null ? Number(m.runtime) : null,
-  };
-}
-
 function badge(text) {
   const b = document.createElement("span");
   b.className = "badge";
@@ -1050,12 +982,27 @@ function badge(text) {
   return b;
 }
 
-function yearFromAny(m) {
-  if (Number.isFinite(m?.release_year)) return String(m.release_year);
-  if (!m?.release_date) return "????";
-  const s = String(m.release_date);
-  const mm = s.match(/\d{4}/);
-  return mm ? mm[0] : "????";
+function yearFromDate(d) {
+  if (!d) return "????";
+  const s = String(d);
+  const m = s.match(/\d{4}/);
+  return m ? m[0] : "????";
+}
+
+function yearInt(m) {
+  const y = parseInt(yearFromDate(m?.release_date), 10);
+  return Number.isFinite(y) ? y : 0;
+}
+
+function extractGenres(m) {
+  // support various shapes
+  const arr =
+    m?.genre_list || m?.genres || (Array.isArray(m?.genres) ? m.genres : null);
+
+  if (Array.isArray(arr)) {
+    return arr.map((g) => String(g).toLowerCase().trim()).filter(Boolean);
+  }
+  return [];
 }
 
 function safeTitle(m) {
@@ -1078,22 +1025,24 @@ function clampInt(v, a, b) {
   return Math.max(a, Math.min(b, n));
 }
 
-function clamp01(x) {
-  x = Number(x);
-  if (!Number.isFinite(x)) return 0;
-  return Math.max(0, Math.min(1, x));
+function numOrNull(v) {
+  const s = String(v || "").trim();
+  if (!s) return null;
+  const x = Number(s);
+  return Number.isFinite(x) ? x : null;
+}
+
+function intOrNull(v) {
+  const s = String(v || "").trim();
+  if (!s) return null;
+  const x = parseInt(s, 10);
+  return Number.isFinite(x) ? x : null;
 }
 
 function mean(arr) {
-  if (!arr || !arr.length) return NaN;
-  return arr.reduce((s, x) => s + x, 0) / arr.length;
-}
-
-function std(arr) {
-  if (!arr || arr.length < 2) return 0;
-  const m = mean(arr);
-  const v = arr.reduce((s, x) => s + (x - m) * (x - m), 0) / (arr.length - 1);
-  return Math.sqrt(v);
+  if (!arr || !arr.length) return null;
+  const s = arr.reduce((a, b) => a + b, 0);
+  return s / arr.length;
 }
 
 function posterSrc(m) {

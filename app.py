@@ -1,8 +1,6 @@
 import os
 import time
-import math
 import atexit
-
 from flask import Flask, jsonify, request, render_template
 from psycopg2.extras import RealDictCursor
 from psycopg2.pool import SimpleConnectionPool
@@ -49,16 +47,42 @@ def release_db(conn):
         POOL.putconn(conn)
 
 # ======================================================
-# Cache
+# Cache (24h)
 # ======================================================
 CACHE_TTL = 24 * 3600
-
 _CACHE = {
     "languages": {"ts": 0, "data": None},
     "levels": {"ts": 0, "data": None},
     "stats": {"ts": 0, "data": None},
     "booth_picks": {"ts": 0, "data": None},
 }
+
+# ======================================================
+# Booth Picks — YOUR CURATED LIST (20)
+# (global list, independent of language)
+# ======================================================
+BOOTH_PICKS = [
+    {"title": "Parasite", "year": 2019},
+    {"title": "Spirited Away", "year": 2001},
+    {"title": "Your Name.", "year": 2016},
+    {"title": "Amélie", "year": 2001},
+    {"title": "Intouchables", "year": 2011},
+    {"title": "La vita è bella", "year": 1997},
+    {"title": "Jurassic Park", "year": 1993},
+    {"title": "Forrest Gump", "year": 1994},
+    {"title": "The Dark Knight", "year": 2008},
+    {"title": "Slumdog Millionaire", "year": 2008},
+    {"title": "The Lives of Others", "year": 2006},
+    {"title": "Inception", "year": 2010},
+    {"title": "The Grand Budapest Hotel", "year": 2014},
+    {"title": "Life of Pi", "year": 2012},
+    {"title": "Roma", "year": 2018},
+    {"title": "The Pianist", "year": 2002},
+    {"title": "Harry Potter and the Sorcerer's Stone", "year": 2001},
+    {"title": "Coco", "year": 2017},
+    {"title": "The Lion King", "year": 1994},
+    {"title": "Titanic", "year": 1997},
+]
 
 # ======================================================
 # Helpers
@@ -81,27 +105,25 @@ def safe_float(v):
     except Exception:
         return None
 
+def safe_int(v):
+    try:
+        return int(v)
+    except Exception:
+        return None
+
 def poster_url(path):
     if path and str(path).startswith("/"):
         return f"{TMDB_IMG_BASE}{path}"
     return None
 
-def year_from_release_date(val):
-    """
-    Robust extraction:
-    - if release_date is date or text starting with YYYY -> take first 4 digits
-    - else -> None
-    """
-    if val is None:
-        return None
-    s = str(val)
-    if len(s) >= 4 and s[0:4].isdigit():
-        try:
-            y = int(s[0:4])
-            return y if 1800 <= y <= 2100 else None
-        except Exception:
-            return None
-    return None
+# SQL snippet to extract year from release_date (robust)
+YEAR_SQL = r"""
+CASE
+  WHEN release_date IS NOT NULL AND release_date::text ~ '^\d{4}'
+  THEN SUBSTRING(release_date::text FROM 1 FOR 4)::int
+  ELSE NULL
+END
+"""
 
 # ======================================================
 # Pages
@@ -168,7 +190,7 @@ def api_levels():
         release_db(conn)
 
 # ======================================================
-# API — genres (par langue)
+# API — genres (depends on chosen language)
 # ======================================================
 @app.get("/api/genres")
 def api_genres():
@@ -192,7 +214,7 @@ def api_genres():
         release_db(conn)
 
 # ======================================================
-# API — single movie (for dialog)
+# API — single movie (used by dialog)
 # ======================================================
 @app.get("/api/movie/<movie_id>")
 def api_movie(movie_id):
@@ -203,148 +225,87 @@ def api_movie(movie_id):
             row = cur.fetchone()
             if not row:
                 return jsonify({"error": "Movie not found"}), 404
-
-        row["poster_url"] = poster_url(row.get("poster_path"))
-        # normalize front-end expectations
-        row["genre_list"] = row.get("genre_list") or row.get("genres") or []
-        row["release_year"] = row.get("release_year") or year_from_release_date(row.get("release_date"))
-        row["id"] = str(row.get("id"))
-        return jsonify(row)
+            row["poster_url"] = poster_url(row.get("poster_path"))
+            return jsonify(row)
     finally:
         release_db(conn)
 
 # ======================================================
-# API — Booth Picks (global list, famous + representative)
+# API — Booth Picks (GLOBAL LIST, shown after language chosen)
 # ======================================================
-def build_booth_picks():
-    """
-    Strategy:
-    - Pull a big pool of popular movies (not language-specific)
-    - Keep only movies with poster + decent rating
-    - Select a representative subset by genre quotas (simple + robust)
-    """
-    conn = get_db()
-    try:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(f"""
-                SELECT id, title, original_title, original_language, release_date,
-                       poster_path, popularity, vote_average, runtime, genres, linguistic_level, linguistic_register
-                FROM {TABLE_NAME}
-                WHERE poster_path IS NOT NULL
-                ORDER BY popularity DESC
-                LIMIT 1200;
-            """)
-            pool = cur.fetchall() or []
-    finally:
-        release_db(conn)
-
-    # Normalize items
-    items = []
-    for r in pool:
-        g = r.get("genres") or []
-        if isinstance(g, str):
-            g = [g]
-        yr = year_from_release_date(r.get("release_date"))
-        r["poster_url"] = poster_url(r.get("poster_path"))
-        r["genre_list"] = g
-        r["release_year"] = yr
-        r["id"] = str(r.get("id"))
-        # Filter a bit to avoid obscure low-rated stuff
-        try:
-            va = float(r.get("vote_average") or 0)
-        except Exception:
-            va = 0.0
-        if va < 6.2:
-            continue
-        items.append(r)
-
-    # Genre buckets (lowercase)
-    buckets = {
-        "action": ["action"],
-        "comedy": ["comedy"],
-        "drama": ["drama"],
-        "thriller": ["thriller"],
-        "sci-fi": ["science fiction", "sci-fi", "scifi"],
-        "romance": ["romance"],
-        "horror": ["horror"],
-        "animation": ["animation"],
-        "crime": ["crime"],
-        "family": ["family"],
-        "adventure": ["adventure"],
-        "fantasy": ["fantasy"],
-    }
-
-    def bucket_of(movie):
-        gs = [str(x).strip().lower() for x in (movie.get("genre_list") or [])]
-        for b, keys in buckets.items():
-            for k in keys:
-                if k in gs:
-                    return b
-        return None
-
-    # Quotas: representative
-    quotas = {
-        "action": 10,
-        "comedy": 10,
-        "drama": 10,
-        "thriller": 8,
-        "sci-fi": 8,
-        "romance": 6,
-        "horror": 6,
-        "animation": 6,
-        "crime": 6,
-        "family": 4,
-        "adventure": 4,
-        "fantasy": 4,
-    }
-    target_total = 90  # feel free to adjust 60–120
-    picked = []
-    picked_ids = set()
-    count = {k: 0 for k in quotas.keys()}
-
-    # 1) Fill genre quotas first
-    for m in items:
-        b = bucket_of(m)
-        if not b or b not in quotas:
-            continue
-        if count[b] >= quotas[b]:
-            continue
-        mid = m["id"]
-        if mid in picked_ids:
-            continue
-        picked.append(m)
-        picked_ids.add(mid)
-        count[b] += 1
-        if len(picked) >= target_total:
-            break
-
-    # 2) Fill remaining with "global famous" (top popularity) to hit target_total
-    if len(picked) < target_total:
-        for m in items:
-            mid = m["id"]
-            if mid in picked_ids:
-                continue
-            picked.append(m)
-            picked_ids.add(mid)
-            if len(picked) >= target_total:
-                break
-
-    return picked
-
 @app.get("/api/booth_picks")
 def api_booth_picks():
+    # optional refresh
     refresh = request.args.get("refresh") == "1"
     c = _CACHE["booth_picks"]
     if (not refresh) and c["data"] and time.time() - c["ts"] < CACHE_TTL:
         return jsonify({"results": c["data"], "count": len(c["data"])})
 
-    picks = build_booth_picks()
-    c["data"] = picks
-    c["ts"] = time.time()
-    return jsonify({"results": picks, "count": len(picks)})
+    # Build VALUES list for (title, year)
+    values_sql = ", ".join(["(%s, %s)"] * len(BOOTH_PICKS))
+    params = []
+    for p in BOOTH_PICKS:
+        params.extend([p["title"], p["year"]])
+
+    # Try matching by title (or original_title) + year extracted from release_date
+    sql = f"""
+    WITH picks(title, y) AS (
+      VALUES {values_sql}
+    ),
+    movies_with_year AS (
+      SELECT
+        m.*,
+        {YEAR_SQL} AS year_int
+      FROM {TABLE_NAME} m
+    )
+    SELECT mw.*
+    FROM picks p
+    JOIN movies_with_year mw
+      ON (
+        LOWER(mw.title) = LOWER(p.title)
+        OR LOWER(mw.original_title) = LOWER(p.title)
+      )
+     AND mw.year_int = p.y;
+    """
+
+    conn = get_db()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(sql, params)
+            rows = cur.fetchall()
+
+        # add poster_url
+        for r in rows:
+            r["poster_url"] = poster_url(r.get("poster_path"))
+
+        # If some titles not found in your DB, fill with ultra-popular fallback
+        if len(rows) < len(BOOTH_PICKS):
+            missing = len(BOOTH_PICKS) - len(rows)
+            conn2 = get_db()
+            try:
+                with conn2.cursor(cursor_factory=RealDictCursor) as cur2:
+                    cur2.execute(f"""
+                        SELECT *
+                        FROM {TABLE_NAME}
+                        ORDER BY popularity DESC NULLS LAST
+                        LIMIT %s;
+                    """, (missing,))
+                    extra = cur2.fetchall()
+                for r in extra:
+                    r["poster_url"] = poster_url(r.get("poster_path"))
+                rows = rows + extra
+            finally:
+                release_db(conn2)
+
+        c["data"] = rows
+        c["ts"] = time.time()
+        return jsonify({"results": rows, "count": len(rows)})
+    finally:
+        release_db(conn)
 
 # ======================================================
-# API — recommendations (lang mandatory + optional filters incl. year)
+# API — recommendations (language required, others optional)
+# + yearMin/yearMax optional filters
 # ======================================================
 @app.post("/api/recommendations")
 def api_recommendations():
@@ -360,8 +321,8 @@ def api_recommendations():
     max_runtime = safe_float(data.get("max_runtime"))
     level = normalize_lang(data.get("linguistic_level"))
 
-    min_year = clamp_int(data.get("min_year"), 1800, 2100, None)
-    max_year = clamp_int(data.get("max_year"), 1800, 2100, None)
+    year_min = safe_int(data.get("year_min"))
+    year_max = safe_int(data.get("year_max"))
 
     where = ["LOWER(original_language) = %s"]
     params = [lang]
@@ -382,33 +343,20 @@ def api_recommendations():
         where.append("LOWER(linguistic_level) = %s")
         params.append(level)
 
-    # year filter (optional) - robust extraction from release_date text/date
-    # only apply if user filled it
-    if min_year is not None:
-        where.append("""
-            (CASE
-              WHEN release_date IS NOT NULL AND release_date::text ~ '^\\d{4}'
-              THEN SUBSTRING(release_date::text FROM 1 FOR 4)::int
-              ELSE NULL
-            END) >= %s
-        """)
-        params.append(min_year)
+    # year range on extracted year from release_date
+    if year_min is not None:
+        where.append(f"({YEAR_SQL}) >= %s")
+        params.append(year_min)
 
-    if max_year is not None:
-        where.append("""
-            (CASE
-              WHEN release_date IS NOT NULL AND release_date::text ~ '^\\d{4}'
-              THEN SUBSTRING(release_date::text FROM 1 FOR 4)::int
-              ELSE NULL
-            END) <= %s
-        """)
-        params.append(max_year)
+    if year_max is not None:
+        where.append(f"({YEAR_SQL}) <= %s")
+        params.append(year_max)
 
     sql = f"""
         SELECT *
         FROM {TABLE_NAME}
         WHERE {' AND '.join(where)}
-        ORDER BY popularity DESC
+        ORDER BY popularity DESC NULLS LAST
         LIMIT %s;
     """
     params.append(top_n)
@@ -417,92 +365,12 @@ def api_recommendations():
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql, params)
-            rows = cur.fetchall() or []
+            rows = cur.fetchall()
 
         for r in rows:
             r["poster_url"] = poster_url(r.get("poster_path"))
-            r["genre_list"] = r.get("genre_list") or r.get("genres") or []
-            r["release_year"] = r.get("release_year") or year_from_release_date(r.get("release_date"))
-            r["id"] = str(r.get("id"))
 
         return jsonify({"results": rows, "count": len(rows)})
-    finally:
-        release_db(conn)
-
-# ======================================================
-# API — stats (cached)
-# ======================================================
-@app.get("/api/stats")
-def api_stats():
-    refresh = request.args.get("refresh") == "1"
-    c = _CACHE["stats"]
-    if (not refresh) and c["data"] and time.time() - c["ts"] < CACHE_TTL:
-        return jsonify(c["data"])
-
-    conn = get_db()
-    try:
-        with conn.cursor() as cur:
-            cur.execute(f"SELECT COUNT(*) FROM {TABLE_NAME};")
-            total = cur.fetchone()[0]
-
-            cur.execute(f"""
-                SELECT LOWER(original_language), COUNT(*)
-                FROM {TABLE_NAME}
-                WHERE original_language IS NOT NULL AND TRIM(original_language) <> ''
-                GROUP BY 1
-                ORDER BY 2 DESC
-                LIMIT 20;
-            """)
-            languages = [{"label": r[0], "value": r[1]} for r in cur.fetchall() if r[0]]
-
-            cur.execute(f"""
-                SELECT LOWER(linguistic_level), COUNT(*)
-                FROM {TABLE_NAME}
-                WHERE linguistic_level IS NOT NULL AND TRIM(linguistic_level) <> ''
-                GROUP BY 1
-                ORDER BY 2 DESC;
-            """)
-            levels = [{"label": r[0], "value": r[1]} for r in cur.fetchall() if r[0]]
-
-            cur.execute(f"""
-                SELECT LOWER(g), COUNT(*)
-                FROM {TABLE_NAME}
-                CROSS JOIN LATERAL unnest(genres) g
-                WHERE g IS NOT NULL AND TRIM(g) <> ''
-                GROUP BY 1
-                ORDER BY 2 DESC
-                LIMIT 25;
-            """)
-            genres = [{"label": r[0], "value": r[1]} for r in cur.fetchall() if r[0]]
-
-            cur.execute(f"""
-                SELECT year_int, COUNT(*)
-                FROM (
-                  SELECT
-                    CASE
-                      WHEN release_date IS NOT NULL AND release_date::text ~ '^\\d{{4}}'
-                      THEN SUBSTRING(release_date::text FROM 1 FOR 4)::int
-                      ELSE NULL
-                    END AS year_int
-                  FROM {TABLE_NAME}
-                ) t
-                WHERE year_int IS NOT NULL
-                GROUP BY year_int
-                ORDER BY year_int ASC;
-            """)
-            years = [{"year": r[0], "count": r[1]} for r in cur.fetchall() if r[0]]
-
-        payload = {
-            "total_movies": total,
-            "languages_top": languages,
-            "levels_top": levels,
-            "genres_top": genres,
-            "years_distribution": years,
-        }
-
-        c["data"] = payload
-        c["ts"] = time.time()
-        return jsonify(payload)
     finally:
         release_db(conn)
 
