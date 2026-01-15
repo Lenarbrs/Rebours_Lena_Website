@@ -2,7 +2,6 @@ import os
 import time
 import math
 import atexit
-from collections import Counter
 
 from flask import Flask, jsonify, request, render_template
 from psycopg2.extras import RealDictCursor
@@ -50,7 +49,7 @@ def release_db(conn):
         POOL.putconn(conn)
 
 # ======================================================
-# Cache (24h)
+# Cache
 # ======================================================
 CACHE_TTL = 24 * 3600
 
@@ -58,6 +57,7 @@ _CACHE = {
     "languages": {"ts": 0, "data": None},
     "levels": {"ts": 0, "data": None},
     "stats": {"ts": 0, "data": None},
+    "booth_picks": {"ts": 0, "data": None},
 }
 
 # ======================================================
@@ -68,13 +68,6 @@ def normalize_lang(v):
 
 def normalize_genres(arr):
     return [str(g).strip().lower() for g in (arr or []) if str(g).strip()]
-
-def parse_genres_param(v):
-    """genres=crime,drama -> ['crime','drama']"""
-    if not v:
-        return []
-    parts = [p.strip().lower() for p in str(v).split(",")]
-    return [p for p in parts if p]
 
 def clamp_int(v, a, b, d):
     try:
@@ -88,150 +81,27 @@ def safe_float(v):
     except Exception:
         return None
 
-def safe_int(v):
-    try:
-        return int(v)
-    except Exception:
-        return None
-
 def poster_url(path):
     if path and str(path).startswith("/"):
         return f"{TMDB_IMG_BASE}{path}"
     return None
 
-def normalize_row(r: dict):
-    """Ensure fields expected by frontend exist (poster_url, genre_list)."""
-    if not r:
-        return r
-    r["poster_url"] = poster_url(r.get("poster_path"))
-    # Front expects genre_list (you have genres array in DB)
-    if "genre_list" not in r:
-        g = r.get("genres")
-        if isinstance(g, list):
-            r["genre_list"] = g
-        else:
-            r["genre_list"] = []
-    return r
-
-def year_from_release_date(release_date):
-    if not release_date:
+def year_from_release_date(val):
+    """
+    Robust extraction:
+    - if release_date is date or text starting with YYYY -> take first 4 digits
+    - else -> None
+    """
+    if val is None:
         return None
-    s = str(release_date)
-    if len(s) >= 4 and s[:4].isdigit():
-        return int(s[:4])
+    s = str(val)
+    if len(s) >= 4 and s[0:4].isdigit():
+        try:
+            y = int(s[0:4])
+            return y if 1800 <= y <= 2100 else None
+        except Exception:
+            return None
     return None
-
-def exp_decay(dist, k):
-    try:
-        return math.exp(-abs(dist) / float(k))
-    except Exception:
-        return 0.0
-
-def build_user_profile(favs: list[dict]):
-    """Mini-model: profile from favorites."""
-    if not favs:
-        return None
-
-    genre_counter = Counter()
-    years = []
-    runtimes = []
-    ratings = []
-
-    for m in favs:
-        gl = m.get("genre_list") or m.get("genres") or []
-        for g in gl:
-            gg = str(g).strip().lower()
-            if gg:
-                genre_counter[gg] += 1
-
-        y = year_from_release_date(m.get("release_date"))
-        if y:
-            years.append(y)
-
-        rt = m.get("runtime")
-        if rt is not None:
-            try:
-                runtimes.append(float(rt))
-            except Exception:
-                pass
-
-        va = m.get("vote_average")
-        if va is not None:
-            try:
-                ratings.append(float(va))
-            except Exception:
-                pass
-
-    total_genres = sum(genre_counter.values()) or 1
-
-    profile = {
-        "genre_weights": {k: v / total_genres for k, v in genre_counter.items()},
-        "mean_year": sum(years) / len(years) if years else None,
-        "mean_runtime": sum(runtimes) / len(runtimes) if runtimes else None,
-        "mean_rating": sum(ratings) / len(ratings) if ratings else None,
-    }
-    return profile
-
-def personalized_score(profile, movie: dict):
-    """Score candidate movie using profile."""
-    if not profile:
-        return 0.0
-
-    # Features
-    gl = movie.get("genre_list") or movie.get("genres") or []
-    gl = [str(g).strip().lower() for g in gl if str(g).strip()]
-    y = year_from_release_date(movie.get("release_date"))
-    rt = movie.get("runtime")
-    va = movie.get("vote_average")
-    pop = movie.get("popularity")
-
-    # Genre affinity
-    gw = profile["genre_weights"] or {}
-    genre_score = 0.0
-    if gl:
-        genre_score = sum(gw.get(g, 0.0) for g in gl)
-        # normalize a bit by number of genres
-        genre_score = genre_score / max(1, len(gl))
-
-    # Year affinity
-    year_score = 0.0
-    if profile["mean_year"] is not None and y is not None:
-        year_score = exp_decay(y - profile["mean_year"], 10)  # decade-ish
-
-    # Runtime affinity
-    runtime_score = 0.0
-    if profile["mean_runtime"] is not None and rt is not None:
-        try:
-            runtime_score = exp_decay(float(rt) - profile["mean_runtime"], 40)
-        except Exception:
-            runtime_score = 0.0
-
-    # Rating preference (just use rating as a positive feature)
-    rating_score = 0.0
-    if va is not None:
-        try:
-            rating_score = max(0.0, min(1.0, float(va) / 10.0))
-        except Exception:
-            rating_score = 0.0
-
-    # Popularity (log-normalized)
-    pop_score = 0.0
-    if pop is not None:
-        try:
-            pop_score = math.log1p(max(0.0, float(pop))) / 10.0
-            pop_score = max(0.0, min(1.0, pop_score))
-        except Exception:
-            pop_score = 0.0
-
-    # Weights (tunable)
-    score = (
-        0.55 * genre_score +
-        0.15 * year_score +
-        0.15 * rating_score +
-        0.10 * runtime_score +
-        0.05 * pop_score
-    )
-    return float(score)
 
 # ======================================================
 # Pages
@@ -298,24 +168,7 @@ def api_levels():
         release_db(conn)
 
 # ======================================================
-# API — single movie (needed for dialog fallback)
-# ======================================================
-@app.get("/api/movie/<movie_id>")
-def api_movie(movie_id):
-    conn = get_db()
-    try:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(f"SELECT * FROM {TABLE_NAME} WHERE id = %s LIMIT 1;", (movie_id,))
-            row = cur.fetchone()
-            if not row:
-                return jsonify({"error": "Movie not found"}), 404
-            normalize_row(row)
-            return jsonify(row)
-    finally:
-        release_db(conn)
-
-# ======================================================
-# API — genres
+# API — genres (par langue)
 # ======================================================
 @app.get("/api/genres")
 def api_genres():
@@ -339,65 +192,159 @@ def api_genres():
         release_db(conn)
 
 # ======================================================
-# API — Booth picks (list of movies user can favorite before printing)
+# API — single movie (for dialog)
 # ======================================================
-@app.get("/api/booth_movies")
-def api_booth_movies():
-    lang = normalize_lang(request.args.get("lang"))
-    if not lang:
-        return jsonify({"results": [], "count": 0})
-
-    limit = clamp_int(request.args.get("limit"), 1, 40, 12)
-    genres = parse_genres_param(request.args.get("genres"))
-    year_min = safe_int(request.args.get("year_min"))
-    year_max = safe_int(request.args.get("year_max"))
-
-    where = ["LOWER(original_language) = %s"]
-    params = [lang]
-
-    if genres:
-        where.append("ARRAY(SELECT LOWER(x) FROM unnest(genres) x) && %s")
-        params.append(genres)
-
-    # robust year extraction from release_date (date or text)
-    year_expr = """
-        CASE
-          WHEN release_date IS NOT NULL AND release_date::text ~ '^\\d{4}'
-          THEN SUBSTRING(release_date::text FROM 1 FOR 4)::int
-          ELSE NULL
-        END
-    """
-
-    if year_min is not None:
-        where.append(f"({year_expr}) >= %s")
-        params.append(year_min)
-
-    if year_max is not None:
-        where.append(f"({year_expr}) <= %s")
-        params.append(year_max)
-
-    sql = f"""
-        SELECT *
-        FROM {TABLE_NAME}
-        WHERE {' AND '.join(where)}
-        ORDER BY popularity DESC NULLS LAST
-        LIMIT %s;
-    """
-    params.append(limit)
-
+@app.get("/api/movie/<movie_id>")
+def api_movie(movie_id):
     conn = get_db()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(sql, params)
-            rows = cur.fetchall()
+            cur.execute(f"SELECT * FROM {TABLE_NAME} WHERE id = %s LIMIT 1;", (movie_id,))
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"error": "Movie not found"}), 404
 
-        rows = [normalize_row(r) for r in rows]
-        return jsonify({"results": rows, "count": len(rows)})
+        row["poster_url"] = poster_url(row.get("poster_path"))
+        # normalize front-end expectations
+        row["genre_list"] = row.get("genre_list") or row.get("genres") or []
+        row["release_year"] = row.get("release_year") or year_from_release_date(row.get("release_date"))
+        row["id"] = str(row.get("id"))
+        return jsonify(row)
     finally:
         release_db(conn)
 
 # ======================================================
-# API — recommendations (supports sorting + personalized mini-model + year filter)
+# API — Booth Picks (global list, famous + representative)
+# ======================================================
+def build_booth_picks():
+    """
+    Strategy:
+    - Pull a big pool of popular movies (not language-specific)
+    - Keep only movies with poster + decent rating
+    - Select a representative subset by genre quotas (simple + robust)
+    """
+    conn = get_db()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(f"""
+                SELECT id, title, original_title, original_language, release_date,
+                       poster_path, popularity, vote_average, runtime, genres, linguistic_level, linguistic_register
+                FROM {TABLE_NAME}
+                WHERE poster_path IS NOT NULL
+                ORDER BY popularity DESC
+                LIMIT 1200;
+            """)
+            pool = cur.fetchall() or []
+    finally:
+        release_db(conn)
+
+    # Normalize items
+    items = []
+    for r in pool:
+        g = r.get("genres") or []
+        if isinstance(g, str):
+            g = [g]
+        yr = year_from_release_date(r.get("release_date"))
+        r["poster_url"] = poster_url(r.get("poster_path"))
+        r["genre_list"] = g
+        r["release_year"] = yr
+        r["id"] = str(r.get("id"))
+        # Filter a bit to avoid obscure low-rated stuff
+        try:
+            va = float(r.get("vote_average") or 0)
+        except Exception:
+            va = 0.0
+        if va < 6.2:
+            continue
+        items.append(r)
+
+    # Genre buckets (lowercase)
+    buckets = {
+        "action": ["action"],
+        "comedy": ["comedy"],
+        "drama": ["drama"],
+        "thriller": ["thriller"],
+        "sci-fi": ["science fiction", "sci-fi", "scifi"],
+        "romance": ["romance"],
+        "horror": ["horror"],
+        "animation": ["animation"],
+        "crime": ["crime"],
+        "family": ["family"],
+        "adventure": ["adventure"],
+        "fantasy": ["fantasy"],
+    }
+
+    def bucket_of(movie):
+        gs = [str(x).strip().lower() for x in (movie.get("genre_list") or [])]
+        for b, keys in buckets.items():
+            for k in keys:
+                if k in gs:
+                    return b
+        return None
+
+    # Quotas: representative
+    quotas = {
+        "action": 10,
+        "comedy": 10,
+        "drama": 10,
+        "thriller": 8,
+        "sci-fi": 8,
+        "romance": 6,
+        "horror": 6,
+        "animation": 6,
+        "crime": 6,
+        "family": 4,
+        "adventure": 4,
+        "fantasy": 4,
+    }
+    target_total = 90  # feel free to adjust 60–120
+    picked = []
+    picked_ids = set()
+    count = {k: 0 for k in quotas.keys()}
+
+    # 1) Fill genre quotas first
+    for m in items:
+        b = bucket_of(m)
+        if not b or b not in quotas:
+            continue
+        if count[b] >= quotas[b]:
+            continue
+        mid = m["id"]
+        if mid in picked_ids:
+            continue
+        picked.append(m)
+        picked_ids.add(mid)
+        count[b] += 1
+        if len(picked) >= target_total:
+            break
+
+    # 2) Fill remaining with "global famous" (top popularity) to hit target_total
+    if len(picked) < target_total:
+        for m in items:
+            mid = m["id"]
+            if mid in picked_ids:
+                continue
+            picked.append(m)
+            picked_ids.add(mid)
+            if len(picked) >= target_total:
+                break
+
+    return picked
+
+@app.get("/api/booth_picks")
+def api_booth_picks():
+    refresh = request.args.get("refresh") == "1"
+    c = _CACHE["booth_picks"]
+    if (not refresh) and c["data"] and time.time() - c["ts"] < CACHE_TTL:
+        return jsonify({"results": c["data"], "count": len(c["data"])})
+
+    picks = build_booth_picks()
+    c["data"] = picks
+    c["ts"] = time.time()
+    return jsonify({"results": picks, "count": len(picks)})
+
+# ======================================================
+# API — recommendations (lang mandatory + optional filters incl. year)
 # ======================================================
 @app.post("/api/recommendations")
 def api_recommendations():
@@ -412,15 +359,9 @@ def api_recommendations():
     min_rating = safe_float(data.get("min_rating"))
     max_runtime = safe_float(data.get("max_runtime"))
     level = normalize_lang(data.get("linguistic_level"))
-    sort_by = normalize_lang(data.get("sort_by")) or "popularity"
 
-    # optional year filter
-    year_min = safe_int(data.get("year_min"))
-    year_max = safe_int(data.get("year_max"))
-
-    # favorites for personalization
-    fav_ids = data.get("fav_ids") or []
-    fav_ids = [str(x) for x in fav_ids if str(x).strip()]
+    min_year = clamp_int(data.get("min_year"), 1800, 2100, None)
+    max_year = clamp_int(data.get("max_year"), 1800, 2100, None)
 
     where = ["LOWER(original_language) = %s"]
     params = [lang]
@@ -441,114 +382,50 @@ def api_recommendations():
         where.append("LOWER(linguistic_level) = %s")
         params.append(level)
 
-    year_expr = """
-        CASE
-          WHEN release_date IS NOT NULL AND release_date::text ~ '^\\d{4}'
-          THEN SUBSTRING(release_date::text FROM 1 FOR 4)::int
-          ELSE NULL
-        END
+    # year filter (optional) - robust extraction from release_date text/date
+    # only apply if user filled it
+    if min_year is not None:
+        where.append("""
+            (CASE
+              WHEN release_date IS NOT NULL AND release_date::text ~ '^\\d{4}'
+              THEN SUBSTRING(release_date::text FROM 1 FOR 4)::int
+              ELSE NULL
+            END) >= %s
+        """)
+        params.append(min_year)
+
+    if max_year is not None:
+        where.append("""
+            (CASE
+              WHEN release_date IS NOT NULL AND release_date::text ~ '^\\d{4}'
+              THEN SUBSTRING(release_date::text FROM 1 FOR 4)::int
+              ELSE NULL
+            END) <= %s
+        """)
+        params.append(max_year)
+
+    sql = f"""
+        SELECT *
+        FROM {TABLE_NAME}
+        WHERE {' AND '.join(where)}
+        ORDER BY popularity DESC
+        LIMIT %s;
     """
-
-    if year_min is not None:
-        where.append(f"({year_expr}) >= %s")
-        params.append(year_min)
-
-    if year_max is not None:
-        where.append(f"({year_expr}) <= %s")
-        params.append(year_max)
-
-    # Non-personalized order mapping
-    ORDER_MAP = {
-        "popularity": "popularity DESC NULLS LAST",
-        "rating": "vote_average DESC NULLS LAST, popularity DESC NULLS LAST",
-        "newest": f"({year_expr}) DESC NULLS LAST, popularity DESC NULLS LAST",
-        "oldest": f"({year_expr}) ASC NULLS LAST, popularity DESC NULLS LAST",
-    }
+    params.append(top_n)
 
     conn = get_db()
     try:
-        # Personalized: get a larger candidate pool then re-rank in Python
-        if sort_by in ("personalized", "best", "best_for_you", "for_you"):
-            # if no favorites, fallback
-            if not fav_ids:
-                sort_clause = ORDER_MAP["popularity"]
-                sql = f"""
-                    SELECT *
-                    FROM {TABLE_NAME}
-                    WHERE {' AND '.join(where)}
-                    ORDER BY {sort_clause}
-                    LIMIT %s;
-                """
-                params2 = params + [top_n]
-                with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute(sql, params2)
-                    rows = cur.fetchall()
-                rows = [normalize_row(r) for r in rows]
-                return jsonify({"results": rows, "count": len(rows), "sort_by": "popularity"})
-
-            # load favorites rows
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute(f"""
-                    SELECT *
-                    FROM {TABLE_NAME}
-                    WHERE id = ANY(%s);
-                """, (fav_ids,))
-                fav_rows = cur.fetchall()
-
-            fav_rows = [normalize_row(r) for r in fav_rows]
-            profile = build_user_profile(fav_rows)
-
-            # candidate pool
-            candidate_limit = max(200, top_n * 8)
-            sort_clause = ORDER_MAP["popularity"]
-            sql = f"""
-                SELECT *
-                FROM {TABLE_NAME}
-                WHERE {' AND '.join(where)}
-                ORDER BY {sort_clause}
-                LIMIT %s;
-            """
-            params2 = params + [candidate_limit]
-
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute(sql, params2)
-                candidates = cur.fetchall()
-
-            candidates = [normalize_row(r) for r in candidates]
-
-            # score + sort
-            scored = []
-            for m in candidates:
-                s = personalized_score(profile, m)
-                m["_user_score"] = s
-                scored.append(m)
-
-            scored.sort(key=lambda x: (x.get("_user_score", 0.0), x.get("popularity") or 0.0), reverse=True)
-            rows = scored[:top_n]
-
-            # optional: remove internal field if you want
-            for r in rows:
-                r.pop("_user_score", None)
-
-            return jsonify({"results": rows, "count": len(rows), "sort_by": "personalized"})
-
-        # Standard sorts
-        sort_clause = ORDER_MAP.get(sort_by, ORDER_MAP["popularity"])
-        sql = f"""
-            SELECT *
-            FROM {TABLE_NAME}
-            WHERE {' AND '.join(where)}
-            ORDER BY {sort_clause}
-            LIMIT %s;
-        """
-        params.append(top_n)
-
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql, params)
-            rows = cur.fetchall()
+            rows = cur.fetchall() or []
 
-        rows = [normalize_row(r) for r in rows]
-        return jsonify({"results": rows, "count": len(rows), "sort_by": sort_by})
+        for r in rows:
+            r["poster_url"] = poster_url(r.get("poster_path"))
+            r["genre_list"] = r.get("genre_list") or r.get("genres") or []
+            r["release_year"] = r.get("release_year") or year_from_release_date(r.get("release_date"))
+            r["id"] = str(r.get("id"))
+
+        return jsonify({"results": rows, "count": len(rows)})
     finally:
         release_db(conn)
 
@@ -598,7 +475,6 @@ def api_stats():
             """)
             genres = [{"label": r[0], "value": r[1]} for r in cur.fetchall() if r[0]]
 
-            # years_distribution: robust extraction from release_date
             cur.execute(f"""
                 SELECT year_int, COUNT(*)
                 FROM (

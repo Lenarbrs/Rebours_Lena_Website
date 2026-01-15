@@ -7,7 +7,7 @@
     <title>CinéLingua — Cultural Film Recommendation</title>
     <meta
       name="description"
-      content="Choose a language, genres, rating and duration: get your personalized movie recommendations ticket."
+      content="Choose a language (required), optionally pick favorites for personalization, then print your personalized movie ticket."
     />
     <link
       rel="icon"
@@ -80,12 +80,14 @@
           <div class="panel__head">
             <h2 class="panel__title">🎟️ The Ticket Booth</h2>
             <p class="panel__sub">
-              Pick favorites (for personalization), set filters, then print your
-              ticket.
+              <strong>Language is required.</strong> Everything else is
+              optional. Pick a few famous favorites to improve
+              <em>“Best for you”</em>.
             </p>
           </div>
 
           <form id="filters" class="form">
+            <!-- Language (required) -->
             <div class="field">
               <label class="label" for="langSelect"
                 >1) Language (required)</label
@@ -94,10 +96,41 @@
                 <option value="">— Choose a language —</option>
               </select>
               <div id="langInfo" class="hint">
-                Choose a language to see available genres and booth picks.
+                Language is the only required filter. Genres / rating / duration
+                / year are optional.
               </div>
             </div>
 
+            <!-- Booth Picks (global, shown after language is chosen) -->
+            <div class="booth-picks" id="tasteBlock" hidden>
+              <div class="booth-picks__head">
+                <div>
+                  <h3 class="booth-picks__title">
+                    ⭐ Booth Picks (famous films)
+                  </h3>
+                  <p class="booth-picks__sub">
+                    Optional: tap ♥ on movies you love. This trains the
+                    <em>“Best for you”</em> sorting. (The list is the same for
+                    everyone — independent of language.)
+                  </p>
+                </div>
+                <button
+                  id="refreshPicksBtn"
+                  class="btn btn--ghost"
+                  type="button"
+                >
+                  ↻ Refresh
+                </button>
+              </div>
+
+              <div id="boothPicks" class="picks-grid" aria-live="polite"></div>
+
+              <div class="hint" id="boothPicksHint">
+                Tip: pick at least 3 favorites for better personalization.
+              </div>
+            </div>
+
+            <!-- Genres -->
             <div class="field">
               <label class="label" for="genreInput">2) Genres (optional)</label>
 
@@ -118,6 +151,7 @@
               ></div>
             </div>
 
+            <!-- Optional filters -->
             <div class="grid">
               <div class="field">
                 <label class="label" for="minRating">Minimum rating /10</label>
@@ -136,6 +170,26 @@
                   class="control"
                   inputmode="numeric"
                   placeholder="ex: 120"
+                />
+              </div>
+
+              <div class="field">
+                <label class="label" for="yearMin">Year min (optional)</label>
+                <input
+                  id="yearMin"
+                  class="control"
+                  inputmode="numeric"
+                  placeholder="ex: 1990"
+                />
+              </div>
+
+              <div class="field">
+                <label class="label" for="yearMax">Year max (optional)</label>
+                <input
+                  id="yearMax"
+                  class="control"
+                  inputmode="numeric"
+                  placeholder="ex: 2020"
                 />
               </div>
 
@@ -159,62 +213,15 @@
                   value="20"
                 />
               </div>
-
-              <!-- ✅ optional year filter -->
-              <div class="field">
-                <label class="label" for="yearMin">Year min (optional)</label>
-                <input
-                  id="yearMin"
-                  class="control"
-                  inputmode="numeric"
-                  placeholder="ex: 1990"
-                />
-              </div>
-
-              <div class="field">
-                <label class="label" for="yearMax">Year max (optional)</label>
-                <input
-                  id="yearMax"
-                  class="control"
-                  inputmode="numeric"
-                  placeholder="ex: 2020"
-                />
-              </div>
             </div>
 
             <div class="actions">
               <button id="resetBtn" class="btn btn--ghost" type="button">
-                Clear All
+                Clear Optional Filters
               </button>
               <button id="printBtn" class="btn btn--primary" type="submit">
                 🖨️ Print My Ticket
               </button>
-            </div>
-
-            <!-- ✅ Booth picks -->
-            <div class="booth-picks">
-              <div class="booth-picks__head">
-                <div>
-                  <h3 class="booth-picks__title">⭐ Booth Picks</h3>
-                  <p class="booth-picks__sub">
-                    Add some favorites here — it trains your “Best for you”
-                    sorting.
-                  </p>
-                </div>
-                <button
-                  id="refreshPicksBtn"
-                  class="btn btn--ghost"
-                  type="button"
-                >
-                  ↻ Refresh
-                </button>
-              </div>
-
-              <div id="boothPicks" class="picks-grid" aria-live="polite"></div>
-
-              <div class="hint" id="boothPicksHint">
-                Select a language to load picks.
-              </div>
             </div>
           </form>
         </div>
@@ -236,11 +243,11 @@
                 class="control control--mini"
                 title="Sort results"
               >
-                <option value="popularity">Sort: Popularity</option>
-                <option value="rating">Sort: Highest rated</option>
-                <option value="newest">Sort: Newest</option>
-                <option value="oldest">Sort: Oldest</option>
-                <option value="personalized">Sort: Best for you</option>
+                <option value="personal">🧠 Sort: Best for you</option>
+                <option value="rating">⭐ Sort: Highest rated</option>
+                <option value="popular">🔥 Sort: Popularity</option>
+                <option value="recent">🕰️ Sort: Newest</option>
+                <option value="oldest">🏛️ Sort: Oldest</option>
               </select>
 
               <button id="shuffleBtn" class="btn btn--ghost" type="button">
