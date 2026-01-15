@@ -1170,7 +1170,7 @@ body {
    ========================== */
 
 :root {
-  --ui-scale: 0.8; /* 0.88 = plus petit / 0.92 = plus léger */
+  --ui-scale: 0.88; /* 0.88 = plus petit / 0.92 = plus léger */
 }
 
 /* Base typographie */
@@ -1295,4 +1295,101 @@ html {
   padding: calc(1rem * var(--ui-scale)) calc(1.2rem * var(--ui-scale))
     calc(1.2rem * var(--ui-scale));
   height: calc(340px * var(--ui-scale));
+}
+
+/* ==========================
+   Compact: Ticket booth card + Cinema screen
+   ========================== */
+
+/* --- Ticket booth (cards) --- */
+:root {
+  --card-scale: 0.88;
+} /* 0.85 plus petit, 0.92 plus léger */
+
+.cards {
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(calc(320px * var(--card-scale)), 1fr)
+  );
+  gap: calc(1.6rem * var(--card-scale));
+  padding: calc(1.6rem * var(--card-scale));
+}
+
+.card {
+  min-height: calc(520px * var(--card-scale));
+  border-radius: calc(20px * var(--card-scale));
+}
+
+.card__content {
+  padding: calc(1.2rem * var(--card-scale));
+}
+
+.card__poster {
+  height: calc(320px * var(--card-scale));
+  border-radius: calc(12px * var(--card-scale));
+  margin-bottom: calc(1rem * var(--card-scale));
+}
+
+.card__title {
+  font-size: calc(1.25rem * var(--card-scale));
+}
+.card__sub {
+  font-size: calc(0.9rem * var(--card-scale));
+}
+
+.iconbtn {
+  width: calc(40px * var(--card-scale));
+  height: calc(40px * var(--card-scale));
+  font-size: calc(1.1rem * var(--card-scale));
+}
+
+/* --- Cinema screen (dialog/modal) --- */
+:root {
+  --screen-scale: 0.9;
+} /* 0.85 plus petit, 0.95 plus léger */
+
+.dialog {
+  width: min(calc(900px * var(--screen-scale)), 90vw);
+  max-height: 88vh;
+}
+
+.dialog__inner {
+  border-radius: calc(var(--radius) * var(--screen-scale));
+}
+
+.dialog__content {
+  grid-template-columns: calc(320px * var(--screen-scale)) 1fr;
+  gap: calc(1.5rem * var(--screen-scale));
+  padding: calc(1.6rem * var(--screen-scale));
+}
+
+.dialog__title {
+  font-size: calc(2rem * var(--screen-scale));
+}
+.dialog__overview {
+  font-size: calc(1.05rem * var(--screen-scale));
+}
+
+.dialog__close {
+  width: calc(40px * var(--screen-scale));
+  height: calc(40px * var(--screen-scale));
+  font-size: calc(1.2rem * var(--screen-scale));
+}
+
+.poster {
+  border-radius: calc(12px * var(--screen-scale));
+}
+
+/* Mobile: on garde lisible */
+@media (max-width: 768px) {
+  :root {
+    --card-scale: 0.94;
+    --screen-scale: 0.95;
+  }
+  .card__poster {
+    height: calc(280px * var(--card-scale));
+  } /* cohérent avec ton media query */
+  .dialog__content {
+    grid-template-columns: 1fr;
+  }
 }
