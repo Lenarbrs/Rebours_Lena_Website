@@ -1,4 +1,4 @@
-/* static/styles.css - Version complète */
+/* static/styles.css - Version complète (clean + compact) */
 
 :root {
   --bg: #0f0b0a;
@@ -1106,9 +1106,10 @@ body {
     grid-template-columns: 1fr;
   }
 }
-.field {
-  text-align: center;
-}
+
+/* ==========================
+   Stats
+   ========================== */
 
 .stats-grid {
   display: grid;
@@ -1164,232 +1165,101 @@ body {
   height: 100% !important;
 }
 
-/* ==========================
-   Global "dézoom" (site plus petit)
-   Ajuste juste --ui-scale
-   ========================== */
+/* =====================================================
+   Compact layout — smaller panels + more gutter
+   ===================================================== */
 
 :root {
-  --ui-scale: 0.88; /* 0.88 = plus petit / 0.92 = plus léger */
+  /* Layout sizing */
+  --layout-max: 1120px;
+  --layout-pad: clamp(1.25rem, 3.2vw, 2.75rem);
+
+  /* Ticket booth & screen padding */
+  --panel-pad: 1.25rem;
+
+  /* Cards sizing */
+  --card-min: 280px;
+  --card-poster-h: 280px;
+
+  /* Dialog sizing */
+  --dialog-max: 760px;
+  --dialog-poster: 260px;
 }
 
-/* Base typographie */
-html {
-  font-size: calc(16px * var(--ui-scale));
-}
-
-/* Un peu moins d'espaces partout */
-.masthead {
-  padding: calc(0.9rem * var(--ui-scale)) calc(1.25rem * var(--ui-scale));
-}
-
-.brand__logo {
-  width: calc(54px * var(--ui-scale));
-  max-height: calc(54px * var(--ui-scale));
-}
-
-.brand__title {
-  font-size: calc(2.05rem * var(--ui-scale));
-}
-
-.brand__tagline {
-  font-size: calc(0.95rem * var(--ui-scale));
-}
-
+/* Cadre global plus étroit et plus éloigné des bords */
 .stage-vertical {
-  padding: calc(1.5rem * var(--ui-scale));
-  gap: calc(2.5rem * var(--ui-scale));
-  max-width: 1280px; /* optionnel : un peu plus “dense” */
+  max-width: var(--layout-max);
+  margin: 0 auto;
+  padding: var(--layout-pad);
+  gap: 2.1rem;
 }
 
-/* Panels + Forms */
+/* Panels plus compacts */
 .panel__head {
-  padding: calc(1.6rem * var(--ui-scale)) calc(1.6rem * var(--ui-scale))
-    calc(1.2rem * var(--ui-scale));
+  padding: var(--panel-pad) var(--panel-pad) 1rem;
 }
-.panel__title {
-  font-size: calc(1.85rem * var(--ui-scale));
-}
+
 .form {
-  padding: calc(1.6rem * var(--ui-scale));
-}
-.field {
-  margin-bottom: calc(1.7rem * var(--ui-scale));
-}
-.control {
-  padding: calc(0.95rem * var(--ui-scale)) calc(1.1rem * var(--ui-scale));
+  padding: var(--panel-pad);
 }
 
-/* Chips / Tags / Buttons */
 .chips {
-  padding: calc(1.1rem * var(--ui-scale)) calc(1.6rem * var(--ui-scale));
-}
-.tag,
-.sugg,
-.chip,
-.badge {
-  font-size: calc(0.9rem * var(--ui-scale));
-  padding: calc(0.45rem * var(--ui-scale)) calc(0.85rem * var(--ui-scale));
-}
-.btn {
-  padding: calc(0.9rem * var(--ui-scale)) calc(1.4rem * var(--ui-scale));
-  font-size: calc(1rem * var(--ui-scale));
-}
-.iconbtn {
-  width: calc(40px * var(--ui-scale));
-  height: calc(40px * var(--ui-scale));
-  font-size: calc(1.1rem * var(--ui-scale));
+  padding: 0.95rem var(--panel-pad);
 }
 
-/* Cards (le plus visible) */
+/* Cards plus compactes */
 .cards {
-  grid-template-columns: repeat(
-    auto-fill,
-    minmax(calc(320px * var(--ui-scale)), 1fr)
-  );
-  gap: calc(1.6rem * var(--ui-scale));
-  padding: calc(1.6rem * var(--ui-scale));
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
+  gap: 1.2rem;
+  padding: var(--panel-pad);
 }
 
 .card {
-  min-height: calc(520px * var(--ui-scale));
-  border-radius: calc(20px * var(--ui-scale));
+  min-height: 480px;
 }
 
 .card__content {
-  padding: calc(1.2rem * var(--ui-scale));
+  padding: 1rem;
 }
 
 .card__poster {
-  height: calc(320px * var(--ui-scale));
-  border-radius: calc(12px * var(--ui-scale));
-  margin-bottom: calc(1rem * var(--ui-scale));
+  height: var(--card-poster-h);
 }
 
-.card__title {
-  font-size: calc(1.25rem * var(--ui-scale));
-}
-
-/* Dialog (optionnel mais cohérent) */
-.dialog__content {
-  padding: calc(1.6rem * var(--ui-scale));
-  gap: calc(1.5rem * var(--ui-scale));
-}
-.dialog__title {
-  font-size: calc(2rem * var(--ui-scale));
-}
-
-/* Stats */
-.stats-grid {
-  gap: calc(1.5rem * var(--ui-scale));
-  padding: calc(1.6rem * var(--ui-scale));
-}
-.stats-card__head {
-  padding: calc(1.2rem * var(--ui-scale)) calc(1.2rem * var(--ui-scale))
-    calc(0.9rem * var(--ui-scale));
-}
-.stats-card__title {
-  font-size: calc(1.35rem * var(--ui-scale));
-}
-.stats-card__body {
-  padding: calc(1rem * var(--ui-scale)) calc(1.2rem * var(--ui-scale))
-    calc(1.2rem * var(--ui-scale));
-  height: calc(340px * var(--ui-scale));
-}
-
-/* ==========================
-   Compact: Ticket booth card + Cinema screen
-   ========================== */
-
-/* --- Ticket booth (cards) --- */
-:root {
-  --card-scale: 0.88;
-} /* 0.85 plus petit, 0.92 plus léger */
-
-.cards {
-  grid-template-columns: repeat(
-    auto-fill,
-    minmax(calc(320px * var(--card-scale)), 1fr)
-  );
-  gap: calc(1.6rem * var(--card-scale));
-  padding: calc(1.6rem * var(--card-scale));
-}
-
-.card {
-  min-height: calc(520px * var(--card-scale));
-  border-radius: calc(20px * var(--card-scale));
-}
-
-.card__content {
-  padding: calc(1.2rem * var(--card-scale));
-}
-
-.card__poster {
-  height: calc(320px * var(--card-scale));
-  border-radius: calc(12px * var(--card-scale));
-  margin-bottom: calc(1rem * var(--card-scale));
-}
-
-.card__title {
-  font-size: calc(1.25rem * var(--card-scale));
-}
-.card__sub {
-  font-size: calc(0.9rem * var(--card-scale));
-}
-
-.iconbtn {
-  width: calc(40px * var(--card-scale));
-  height: calc(40px * var(--card-scale));
-  font-size: calc(1.1rem * var(--card-scale));
-}
-
-/* --- Cinema screen (dialog/modal) --- */
-:root {
-  --screen-scale: 0.9;
-} /* 0.85 plus petit, 0.95 plus léger */
-
+/* Dialog plus petit */
 .dialog {
-  width: min(calc(900px * var(--screen-scale)), 90vw);
+  width: min(var(--dialog-max), 90vw);
   max-height: 88vh;
 }
 
-.dialog__inner {
-  border-radius: calc(var(--radius) * var(--screen-scale));
-}
-
 .dialog__content {
-  grid-template-columns: calc(320px * var(--screen-scale)) 1fr;
-  gap: calc(1.5rem * var(--screen-scale));
-  padding: calc(1.6rem * var(--screen-scale));
+  grid-template-columns: var(--dialog-poster) 1fr;
+  gap: 1.1rem;
+  padding: 1.25rem;
 }
 
 .dialog__title {
-  font-size: calc(2rem * var(--screen-scale));
+  font-size: 1.75rem;
 }
+
 .dialog__overview {
-  font-size: calc(1.05rem * var(--screen-scale));
+  font-size: 1rem;
 }
 
-.dialog__close {
-  width: calc(40px * var(--screen-scale));
-  height: calc(40px * var(--screen-scale));
-  font-size: calc(1.2rem * var(--screen-scale));
-}
-
-.poster {
-  border-radius: calc(12px * var(--screen-scale));
-}
-
-/* Mobile: on garde lisible */
 @media (max-width: 768px) {
   :root {
-    --card-scale: 0.94;
-    --screen-scale: 0.95;
+    --layout-pad: 1.05rem;
+    --panel-pad: 1.05rem;
+    --card-poster-h: 260px;
+    --dialog-poster: 70vw;
   }
-  .card__poster {
-    height: calc(280px * var(--card-scale));
-  } /* cohérent avec ton media query */
+
   .dialog__content {
     grid-template-columns: 1fr;
+  }
+
+  .poster {
+    width: 70%;
+    margin: 0 auto;
   }
 }
