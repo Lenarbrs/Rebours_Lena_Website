@@ -1,5 +1,7 @@
 import os
 import atexit
+import time
+
 from flask import Flask, jsonify, request, render_template
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -22,6 +24,11 @@ POOL = SimpleConnectionPool(
     maxconn=10,
     dsn=DATABASE_URL,
     sslmode="require",
+    connect_timeout=10,  # avoid hanging too long on connect
+    keepalives=1,
+    keepalives_idle=30,
+    keepalives_interval=10,
+    keepalives_count=5,
 )
 
 @atexit.register
@@ -39,6 +46,15 @@ def release_db_connection(conn):
     """Return a connection to the pool."""
     if conn is not None:
         POOL.putconn(conn)
+
+# --------------------
+# Simple in-memory cache (server-side)
+# --------------------
+_CACHE = {
+    "languages": {"ts": 0, "data": None},
+    "levels": {"ts": 0, "data": None},
+}
+CACHE_TTL = 24 * 3600  # 24 hours
 
 # --------------------
 # Helpers
@@ -93,6 +109,10 @@ def stats_page():
 # --------------------
 @app.get("/api/languages")
 def api_languages():
+    c = _CACHE["languages"]
+    if c["data"] is not None and (time.time() - c["ts"]) < CACHE_TTL:
+        return jsonify({"languages": c["data"]})
+
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
@@ -103,6 +123,9 @@ def api_languages():
                 ORDER BY lang ASC;
             """)
             langs = [r[0] for r in cur.fetchall() if r[0] and r[0] != "nan"]
+
+        c["data"] = langs
+        c["ts"] = time.time()
         return jsonify({"languages": langs})
     finally:
         release_db_connection(conn)
@@ -131,6 +154,10 @@ def api_genres():
 
 @app.get("/api/linguistic_levels")
 def api_linguistic_levels():
+    c = _CACHE["levels"]
+    if c["data"] is not None and (time.time() - c["ts"]) < CACHE_TTL:
+        return jsonify({"levels": c["data"]})
+
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
@@ -141,6 +168,9 @@ def api_linguistic_levels():
                 ORDER BY lvl ASC;
             """)
             levels = [r[0] for r in cur.fetchall() if r[0] and r[0] != "nan"]
+
+        c["data"] = levels
+        c["ts"] = time.time()
         return jsonify({"levels": levels})
     finally:
         release_db_connection(conn)
