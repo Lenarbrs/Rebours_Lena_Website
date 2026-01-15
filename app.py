@@ -1,13 +1,44 @@
 import os
+import atexit
 from flask import Flask, jsonify, request, render_template
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from psycopg2.pool import SimpleConnectionPool
 
 app = Flask(__name__)
 
 TMDB_IMG_BASE = "https://image.tmdb.org/t/p/w342"
 TABLE_NAME = os.environ.get("MOVIES_TABLE", "movies")
 
+# --------------------
+# DB Pool (created once)
+# --------------------
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL is not set in environment variables")
+
+POOL = SimpleConnectionPool(
+    minconn=1,
+    maxconn=10,
+    dsn=DATABASE_URL,
+    sslmode="require",
+)
+
+@atexit.register
+def _close_pool():
+    try:
+        POOL.closeall()
+    except Exception:
+        pass
+
+def get_db_connection():
+    """Borrow a connection from the pool."""
+    return POOL.getconn()
+
+def release_db_connection(conn):
+    """Return a connection to the pool."""
+    if conn is not None:
+        POOL.putconn(conn)
 
 # --------------------
 # Helpers
@@ -42,13 +73,6 @@ def poster_url_from_path(poster_path):
     p = str(poster_path)
     return f"{TMDB_IMG_BASE}{p}" if p.startswith("/") else None
 
-def get_db_connection():
-    DATABASE_URL = os.environ.get("DATABASE_URL")
-    if not DATABASE_URL:
-        raise RuntimeError("DATABASE_URL is not set in environment variables")
-    return psycopg2.connect(DATABASE_URL, sslmode="require")
-
-
 # --------------------
 # Pages
 # --------------------
@@ -63,7 +87,6 @@ def about():
 @app.get("/stats")
 def stats_page():
     return render_template("stats.html")
-
 
 # --------------------
 # API
@@ -82,7 +105,7 @@ def api_languages():
             langs = [r[0] for r in cur.fetchall() if r[0] and r[0] != "nan"]
         return jsonify({"languages": langs})
     finally:
-        conn.close()
+        release_db_connection(conn)
 
 @app.get("/api/genres")
 def api_genres():
@@ -104,7 +127,7 @@ def api_genres():
             genres = [r[0] for r in cur.fetchall() if r[0]]
         return jsonify({"genres": genres})
     finally:
-        conn.close()
+        release_db_connection(conn)
 
 @app.get("/api/linguistic_levels")
 def api_linguistic_levels():
@@ -120,7 +143,7 @@ def api_linguistic_levels():
             levels = [r[0] for r in cur.fetchall() if r[0] and r[0] != "nan"]
         return jsonify({"levels": levels})
     finally:
-        conn.close()
+        release_db_connection(conn)
 
 @app.post("/api/recommendations")
 def api_recommendations():
@@ -140,7 +163,7 @@ def api_recommendations():
     where = ["LOWER(original_language) = %s"]
     params = [lang]
 
-    # genres: overlap (au moins un genre en commun)
+    # genres overlap (at least one in common)
     if genres:
         where.append("ARRAY(SELECT LOWER(x) FROM unnest(genres) x) && %s")
         params.append(genres)
@@ -204,13 +227,15 @@ def api_recommendations():
                 "popularity": r.get("popularity") or 0,
                 "vote_average": r.get("vote_average"),
                 "poster_url": poster_url_from_path(r.get("poster_path")),
-                "linguistic_level": (r.get("linguistic_level") or "").strip().lower() if r.get("linguistic_level") else None,
-                "linguistic_register": (r.get("linguistic_register") or "").strip().lower() if r.get("linguistic_register") else None,
+                "linguistic_level": (r.get("linguistic_level") or "").strip().lower()
+                if r.get("linguistic_level") else None,
+                "linguistic_register": (r.get("linguistic_register") or "").strip().lower()
+                if r.get("linguistic_register") else None,
             })
 
         return jsonify({"results": items, "count": len(items)})
     finally:
-        conn.close()
+        release_db_connection(conn)
 
 @app.get("/api/movie/<movie_id>")
 def api_movie(movie_id):
@@ -256,7 +281,7 @@ def api_movie(movie_id):
 
         return jsonify(out)
     finally:
-        conn.close()
+        release_db_connection(conn)
 
 @app.get("/api/stats")
 def api_stats():
@@ -330,7 +355,7 @@ def api_stats():
             "years_distribution": years_distribution,
         })
     finally:
-        conn.close()
+        release_db_connection(conn)
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
