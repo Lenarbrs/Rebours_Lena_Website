@@ -12,7 +12,6 @@ const els = {
 };
 
 const STORAGE = { theme: "cinelingua.theme" };
-
 let charts = [];
 
 initTheme();
@@ -51,18 +50,9 @@ async function boot() {
     makeBar(els.chartGenres, normalizeItems(data.genres_top), "Count")
   );
 
-  // years: accepte dict {"1999": 3, ...} OU [{label,value}] OU [{year,count}]
-  charts.push(
-    makeBar(
-      els.chartYears,
-      normalizeItems(
-        data.years_distribution,
-        { yearKeys: ["year"], valueKeys: ["count", "value"] },
-        true
-      ),
-      "Count"
-    )
-  );
+  // HISTOGRAMME: toutes les années triées + autoskip ticks
+  const years = normalizeYearDistribution(data.years_distribution);
+  charts.push(makeYearHistogram(els.chartYears, years));
 }
 
 function destroyCharts() {
@@ -83,27 +73,17 @@ function gridColor() {
   return themeIsDark() ? "rgba(212, 175, 55, 0.15)" : "rgba(139, 0, 0, 0.10)";
 }
 
-/**
- * Normalize API outputs:
- * - Accepts: [{label,value}], [{year,count}], {label: value}, {year: count}
- */
-function normalizeItems(input, opt = {}, sortNumericLabels = false) {
-  const yearKeys = opt.yearKeys || ["label", "year"];
-  const valueKeys = opt.valueKeys || ["value", "count"];
-
+/* Supports [{label,value}] OR {label: value} */
+function normalizeItems(input) {
   let items = [];
 
   if (Array.isArray(input)) {
-    items = input.map((x) => {
-      if (x && typeof x === "object") {
-        const label =
-          x.label ?? x.year ?? x.key ?? x.name ?? String(x[yearKeys[0]] ?? "");
-        const value =
-          x.value ?? x.count ?? x.val ?? Number(x[valueKeys[0]] ?? 0);
-        return { label: String(label), value: Number(value) || 0 };
-      }
-      return { label: String(x), value: 0 };
-    });
+    items = input
+      .filter((x) => x && typeof x === "object")
+      .map((x) => ({
+        label: String(x.label ?? x.name ?? x.key ?? ""),
+        value: Number(x.value ?? x.count ?? 0) || 0,
+      }));
   } else if (input && typeof input === "object") {
     items = Object.entries(input).map(([k, v]) => ({
       label: String(k),
@@ -111,19 +91,30 @@ function normalizeItems(input, opt = {}, sortNumericLabels = false) {
     }));
   }
 
-  // Clean
-  items = items
-    .filter((x) => x.label && Number.isFinite(x.value))
-    .map((x) => ({ label: x.label.trim(), value: x.value }));
+  return items.filter((x) => x.label);
+}
 
-  // Sort
-  if (sortNumericLabels) {
-    items.sort((a, b) => Number(a.label) - Number(b.label));
-  } else {
-    items.sort((a, b) => b.value - a.value);
+/* years_distribution can be dict OR list; return [{year, count}] sorted asc */
+function normalizeYearDistribution(input) {
+  let pairs = [];
+
+  if (Array.isArray(input)) {
+    pairs = input.map((x) => ({
+      year: Number(x.year ?? x.label),
+      count: Number(x.count ?? x.value ?? 0) || 0,
+    }));
+  } else if (input && typeof input === "object") {
+    pairs = Object.entries(input).map(([k, v]) => ({
+      year: Number(k),
+      count: Number(v) || 0,
+    }));
   }
 
-  return items;
+  pairs = pairs
+    .filter((x) => Number.isFinite(x.year) && x.year > 0)
+    .sort((a, b) => a.year - b.year);
+
+  return pairs;
 }
 
 function makeBar(canvas, items, yLabel) {
@@ -132,23 +123,59 @@ function makeBar(canvas, items, yLabel) {
 
   return new Chart(canvas, {
     type: "bar",
+    data: { labels, datasets: [{ label: yLabel, data: values }] },
+    options: baseOptions(),
+  });
+}
+
+function makeYearHistogram(canvas, pairs) {
+  const labels = pairs.map((x) => String(x.year));
+  const values = pairs.map((x) => x.count);
+
+  return new Chart(canvas, {
+    type: "bar",
     data: {
       labels,
-      datasets: [{ label: yLabel, data: values }],
+      datasets: [{ label: "Films", data: values }],
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      ...baseOptions(),
       plugins: {
-        legend: { labels: { color: axisColor() } },
-        tooltip: { enabled: true },
+        ...baseOptions().plugins,
+        legend: { display: false }, // histogramme: pas besoin
       },
       scales: {
-        x: { ticks: { color: axisColor() }, grid: { color: gridColor() } },
-        y: { ticks: { color: axisColor() }, grid: { color: gridColor() } },
+        x: {
+          ticks: {
+            color: axisColor(),
+            autoSkip: true,
+            maxTicksLimit: 14, // évite que ça devienne illisible
+          },
+          grid: { color: gridColor() },
+        },
+        y: {
+          ticks: { color: axisColor() },
+          grid: { color: gridColor() },
+          beginAtZero: true,
+        },
       },
     },
   });
+}
+
+function baseOptions() {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: axisColor() } },
+      tooltip: { enabled: true },
+    },
+    scales: {
+      x: { ticks: { color: axisColor() }, grid: { color: gridColor() } },
+      y: { ticks: { color: axisColor() }, grid: { color: gridColor() } },
+    },
+  };
 }
 
 function initTheme() {
@@ -159,7 +186,7 @@ function initTheme() {
 function toggleTheme() {
   const cur = document.documentElement.getAttribute("data-theme") || "dark";
   setTheme(cur === "dark" ? "light" : "dark");
-  setTimeout(() => boot(), 0); // redraw charts with new colors
+  setTimeout(() => boot(), 0);
 }
 
 function setTheme(t) {

@@ -1400,11 +1400,6 @@ html {
 }
 
 /* --- Dark mode: dropdown langue en beige --- */
-[data-theme="dark"] select.control {
-  background: #f6f0de; /* beige */
-  color: #1a1513; /* texte foncé */
-  border-color: rgba(212, 175, 55, 0.35);
-}
 [data-theme="dark"] select.control:focus {
   border-color: #d4af37;
   box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.25);
@@ -1448,4 +1443,45 @@ html {
     width: 70%;
     margin: 0 auto;
   }
+}
+/* =========================
+   DARK MODE: deeper look (About + dropdown darker)
+   ========================= */
+
+/* Dark palette un peu plus “cinema” (fond + panels) */
+[data-theme="dark"] {
+  --bg: #070606; /* plus sombre que #0b0908 */
+  --paper: #14100f; /* cards/panels plus denses */
+  --paper2: #1a1412;
+
+  /* Velvet plus profond */
+  --velvet: #3a0000;
+  --velvet2: #160000;
+
+  --ink: #f6f0de;
+  --muted: rgba(246, 240, 222, 0.72);
+  --stroke: rgba(212, 175, 55, 0.18);
+}
+
+/* About (panel velvet) encore plus dark */
+[data-theme="dark"] .panel--velvet {
+  background: linear-gradient(160deg, #3a0000, #120000);
+  border-color: rgba(212, 175, 55, 0.28);
+}
+
+/* Dropdown "Choose a language" (select) en fond foncé */
+[data-theme="dark"] select.control {
+  background: #151110; /* foncé (espresso) */
+  color: #f6f0de; /* texte clair */
+  border-color: rgba(212, 175, 55, 0.28);
+}
+
+[data-theme="dark"] select.control option {
+  background: #151110;
+  color: #f6f0de;
+}
+
+[data-theme="dark"] select.control:focus {
+  border-color: #d4af37;
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.22);
 }
