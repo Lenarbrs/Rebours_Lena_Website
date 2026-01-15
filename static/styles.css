@@ -1164,67 +1164,135 @@ body {
   height: 100% !important;
 }
 
-/* --- Global scale tweak (Render "zoom" fix) --- */
+/* ==========================
+   Global "dézoom" (site plus petit)
+   Ajuste juste --ui-scale
+   ========================== */
+
+:root {
+  --ui-scale: 0.9; /* 0.88 = plus petit / 0.92 = plus léger */
+}
+
+/* Base typographie */
 html {
-  /* Réduit un peu tout via la base typographique */
-  font-size: 15px; /* au lieu de ~16px */
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
+  font-size: calc(16px * var(--ui-scale));
 }
 
-@media (max-width: 768px) {
-  html {
-    font-size: 14px;
-  }
+/* Un peu moins d'espaces partout */
+.masthead {
+  padding: calc(0.9rem * var(--ui-scale)) calc(1.25rem * var(--ui-scale));
 }
 
-/* Un peu moins d'espace global */
+.brand__logo {
+  width: calc(54px * var(--ui-scale));
+  max-height: calc(54px * var(--ui-scale));
+}
+
+.brand__title {
+  font-size: calc(2.05rem * var(--ui-scale));
+}
+
+.brand__tagline {
+  font-size: calc(0.95rem * var(--ui-scale));
+}
+
 .stage-vertical {
-  padding: 1.2rem;
-  gap: 2rem;
+  padding: calc(1.5rem * var(--ui-scale));
+  gap: calc(2.5rem * var(--ui-scale));
+  max-width: 1280px; /* optionnel : un peu plus “dense” */
 }
 
+/* Panels + Forms */
 .panel__head {
-  padding: 1.3rem 1.3rem 1rem;
+  padding: calc(1.6rem * var(--ui-scale)) calc(1.6rem * var(--ui-scale))
+    calc(1.2rem * var(--ui-scale));
 }
-
+.panel__title {
+  font-size: calc(1.85rem * var(--ui-scale));
+}
 .form {
-  padding: 1.3rem;
+  padding: calc(1.6rem * var(--ui-scale));
+}
+.field {
+  margin-bottom: calc(1.7rem * var(--ui-scale));
+}
+.control {
+  padding: calc(0.95rem * var(--ui-scale)) calc(1.1rem * var(--ui-scale));
 }
 
+/* Chips / Tags / Buttons */
+.chips {
+  padding: calc(1.1rem * var(--ui-scale)) calc(1.6rem * var(--ui-scale));
+}
+.tag,
+.sugg,
+.chip,
+.badge {
+  font-size: calc(0.9rem * var(--ui-scale));
+  padding: calc(0.45rem * var(--ui-scale)) calc(0.85rem * var(--ui-scale));
+}
+.btn {
+  padding: calc(0.9rem * var(--ui-scale)) calc(1.4rem * var(--ui-scale));
+  font-size: calc(1rem * var(--ui-scale));
+}
+.iconbtn {
+  width: calc(40px * var(--ui-scale));
+  height: calc(40px * var(--ui-scale));
+  font-size: calc(1.1rem * var(--ui-scale));
+}
+
+/* Cards (le plus visible) */
 .cards {
-  gap: 1.3rem;
-  padding: 1.3rem;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(calc(320px * var(--ui-scale)), 1fr)
+  );
+  gap: calc(1.6rem * var(--ui-scale));
+  padding: calc(1.6rem * var(--ui-scale));
 }
 
 .card {
-  min-height: 500px;
+  min-height: calc(520px * var(--ui-scale));
+  border-radius: calc(20px * var(--ui-scale));
+}
+
+.card__content {
+  padding: calc(1.2rem * var(--ui-scale));
 }
 
 .card__poster {
-  height: 300px;
+  height: calc(320px * var(--ui-scale));
+  border-radius: calc(12px * var(--ui-scale));
+  margin-bottom: calc(1rem * var(--ui-scale));
 }
 
-/* Boutons un poil plus compacts */
-.btn {
-  padding: 0.75rem 1.15rem;
-  font-size: 0.95rem;
+.card__title {
+  font-size: calc(1.25rem * var(--ui-scale));
 }
 
-.control {
-  padding: 0.85rem 1rem;
-  font-size: 0.95rem;
+/* Dialog (optionnel mais cohérent) */
+.dialog__content {
+  padding: calc(1.6rem * var(--ui-scale));
+  gap: calc(1.5rem * var(--ui-scale));
 }
-
-/* Titres un peu moins gros */
-.brand__title {
-  font-size: 1.9rem;
-}
-
-.panel__title {
-  font-size: 1.65rem;
-}
-
 .dialog__title {
-  font-size: 1.8rem;
+  font-size: calc(2rem * var(--ui-scale));
+}
+
+/* Stats */
+.stats-grid {
+  gap: calc(1.5rem * var(--ui-scale));
+  padding: calc(1.6rem * var(--ui-scale));
+}
+.stats-card__head {
+  padding: calc(1.2rem * var(--ui-scale)) calc(1.2rem * var(--ui-scale))
+    calc(0.9rem * var(--ui-scale));
+}
+.stats-card__title {
+  font-size: calc(1.35rem * var(--ui-scale));
+}
+.stats-card__body {
+  padding: calc(1rem * var(--ui-scale)) calc(1.2rem * var(--ui-scale))
+    calc(1.2rem * var(--ui-scale));
+  height: calc(340px * var(--ui-scale));
 }
