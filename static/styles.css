@@ -1163,3 +1163,68 @@ body {
   width: 100% !important;
   height: 100% !important;
 }
+
+/* --- Global scale tweak (Render "zoom" fix) --- */
+html {
+  /* Réduit un peu tout via la base typographique */
+  font-size: 15px; /* au lieu de ~16px */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+@media (max-width: 768px) {
+  html {
+    font-size: 14px;
+  }
+}
+
+/* Un peu moins d'espace global */
+.stage-vertical {
+  padding: 1.2rem;
+  gap: 2rem;
+}
+
+.panel__head {
+  padding: 1.3rem 1.3rem 1rem;
+}
+
+.form {
+  padding: 1.3rem;
+}
+
+.cards {
+  gap: 1.3rem;
+  padding: 1.3rem;
+}
+
+.card {
+  min-height: 500px;
+}
+
+.card__poster {
+  height: 300px;
+}
+
+/* Boutons un poil plus compacts */
+.btn {
+  padding: 0.75rem 1.15rem;
+  font-size: 0.95rem;
+}
+
+.control {
+  padding: 0.85rem 1rem;
+  font-size: 0.95rem;
+}
+
+/* Titres un peu moins gros */
+.brand__title {
+  font-size: 1.9rem;
+}
+
+.panel__title {
+  font-size: 1.65rem;
+}
+
+.dialog__title {
+  font-size: 1.8rem;
+}
