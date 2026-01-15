@@ -11,6 +11,11 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Space+Mono:wght@400;700&display=swap"
       rel="stylesheet"
     />
+    <link
+      rel="icon"
+      type="image/png"
+      href="{{ url_for('static', filename='movie-icone-ticket-removebg.png') }}"
+    />
 
     <link
       rel="stylesheet"
@@ -89,9 +94,7 @@
             <div class="stats-card">
               <div class="stats-card__head">
                 <h3 class="stats-card__title">Top genres</h3>
-                <p class="stats-card__sub">
-                  Chronological distribution of films by year
-                </p>
+                <p class="stats-card__sub">Most frequent genres</p>
               </div>
               <div class="stats-card__body">
                 <canvas id="chartGenres"></canvas>

@@ -1263,3 +1263,189 @@ body {
     margin: 0 auto;
   }
 }
+/* =====================================================
+   GLOBAL COMPACT UI + fixes (paste at end)
+   ===================================================== */
+
+/* --- Global scale (sans casser tout) --- */
+html {
+  font-size: 15px;
+} /* 16px -> 15px (tout un peu plus petit) */
+
+/* --- Navbar plus petite --- */
+.masthead {
+  padding: 0.55rem 0.9rem;
+}
+
+.masthead__actions {
+  gap: 0.5rem;
+}
+
+.brand {
+  gap: 0.75rem;
+}
+
+.brand__logo {
+  width: 44px;
+  max-height: 44px;
+}
+
+.brand__title {
+  font-size: 1.75rem;
+}
+
+.brand__tagline {
+  font-size: 0.85rem;
+}
+
+/* --- Dark mode: titre CinéLingua PAS blanc (plus doré) --- */
+[data-theme="dark"] .brand__title {
+  background: linear-gradient(135deg, #d4af37 0%, #8b0000 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* --- Boutons plus petits (dark mode, print my ticket, etc.) --- */
+.btn {
+  padding: 0.62rem 1rem;
+  font-size: 0.92rem;
+  border-radius: 10px;
+}
+
+.pill {
+  min-width: 22px;
+  height: 22px;
+  font-size: 0.75rem;
+}
+
+/* Surprise Me invisible en light mode sur fond velvet -> on force un style visible */
+[data-theme="light"] .panel--velvet .btn--ghost {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.38);
+  background: rgba(0, 0, 0, 0.14);
+}
+[data-theme="light"] .panel--velvet .btn--ghost:hover {
+  background: rgba(0, 0, 0, 0.22);
+}
+
+/* --- Icon buttons (♥ / i) plus petits --- */
+.iconbtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  font-size: 1rem;
+}
+
+/* --- Layout plus compact (cards / panels / rectangles) --- */
+:root {
+  --layout-max: 1080px;
+  --layout-pad: clamp(1.1rem, 2.6vw, 2.2rem);
+  --panel-pad: 1.05rem;
+
+  --card-min: 260px;
+  --card-poster-h: 250px;
+
+  --dialog-max: 720px;
+  --dialog-poster: 240px;
+}
+
+.stage-vertical {
+  max-width: var(--layout-max);
+  padding: var(--layout-pad);
+  gap: 1.8rem;
+}
+
+.panel__head {
+  padding: var(--panel-pad) var(--panel-pad) 0.85rem;
+}
+.form {
+  padding: var(--panel-pad);
+}
+.chips {
+  padding: 0.85rem var(--panel-pad);
+}
+
+.cards {
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
+  gap: 1.05rem;
+  padding: var(--panel-pad);
+}
+
+.card {
+  min-height: 440px;
+  border-radius: 16px;
+}
+.card__content {
+  padding: 0.95rem;
+}
+.card__poster {
+  height: var(--card-poster-h);
+}
+
+.dialog {
+  width: min(var(--dialog-max), 90vw);
+  max-height: 86vh;
+}
+.dialog__content {
+  grid-template-columns: var(--dialog-poster) 1fr;
+  gap: 1rem;
+  padding: 1.1rem;
+}
+.dialog__title {
+  font-size: 1.65rem;
+}
+.dialog__overview {
+  font-size: 0.98rem;
+}
+
+/* --- Dark mode: dropdown langue en beige --- */
+[data-theme="dark"] select.control {
+  background: #f6f0de; /* beige */
+  color: #1a1513; /* texte foncé */
+  border-color: rgba(212, 175, 55, 0.35);
+}
+[data-theme="dark"] select.control:focus {
+  border-color: #d4af37;
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.25);
+}
+[data-theme="dark"] select.control option {
+  background: #f6f0de;
+  color: #1a1513;
+}
+
+/* --- ABOUT: en light mode, texte blanc sur panels velvet (rouge) --- */
+[data-theme="light"] .panel--velvet .form,
+[data-theme="light"] .panel--velvet .form p,
+[data-theme="light"] .panel--velvet .form li,
+[data-theme="light"] .panel--velvet .form h4 {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  html {
+    font-size: 14.5px;
+  }
+  .masthead {
+    padding: 0.6rem 0.8rem;
+  }
+  .brand__title {
+    font-size: 1.55rem;
+  }
+
+  :root {
+    --layout-pad: 0.95rem;
+    --panel-pad: 0.95rem;
+    --card-poster-h: 240px;
+    --dialog-poster: 70vw;
+  }
+
+  .dialog__content {
+    grid-template-columns: 1fr;
+  }
+  .poster {
+    width: 70%;
+    margin: 0 auto;
+  }
+}
