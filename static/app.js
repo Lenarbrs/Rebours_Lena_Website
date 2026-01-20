@@ -3,7 +3,6 @@ const $ = (s) => document.querySelector(s);
 const els = {
   themeBtn: $("#themeBtn"),
 
-  // favorites
   openFavBtn: $("#openFavBtn"),
   closeFavBtn: $("#closeFavBtn"),
   clearFavBtn: $("#clearFavBtn"),
@@ -11,7 +10,6 @@ const els = {
   favList: $("#favList"),
   favCount: $("#favCount"),
 
-  // preferences
   openPrefsBtn: $("#openPrefsBtn"),
   closePrefsBtn: $("#closePrefsBtn"),
   clearPrefsBtn: $("#clearPrefsBtn"),
@@ -20,7 +18,6 @@ const els = {
   prefCount: $("#prefCount"),
   clearPrefsDrawerBtn: $("#clearPrefsDrawerBtn"),
 
-  // filters
   filters: $("#filters"),
   langSelect: $("#langSelect"),
   langInfo: $("#langInfo"),
@@ -31,20 +28,18 @@ const els = {
   maxRuntime: $("#maxRuntime"),
   yearMin: $("#yearMin"),
   yearMax: $("#yearMax"),
-  topN: $("#topN"),
   resetBtn: $("#resetBtn"),
   shuffleBtn: $("#shuffleBtn"),
   linguisticLevel: $("#linguisticLevel"),
   sortSelect: $("#sortSelect"),
 
-  // results
   cards: $("#cards"),
   empty: $("#emptyState"),
   resultsMeta: $("#resultsMeta"),
   chips: $("#activeChips"),
   printer: $("#ticketPrinter"),
+  matchCount: $("#matchCount"),
 
-  // dialog
   dialog: $("#movieDialog"),
   dialogTitle: $("#dialogTitle"),
   dialogSub: $("#dialogSub"),
@@ -52,7 +47,6 @@ const els = {
   dialogMeta: $("#dialogMeta"),
   dialogFavBtn: $("#dialogFavBtn"),
 
-  // booth picks (preferences)
   tasteBlock: $("#tasteBlock"),
   boothPicks: $("#boothPicks"),
 };
@@ -61,19 +55,17 @@ const STORAGE = {
   theme: "cinelingua.theme",
   favorites: "cinelingua.fav",
   fav_cache: "cinelingua.fav_cache",
-
-  prefs: "cinelingua.prefs", // ✅ preferences for personalization
+  prefs: "cinelingua.prefs",
   prefs_cache: "cinelingua.prefs_cache",
 };
 
 let selectedGenres = [];
 
 let favorites = new Set(
-  JSON.parse(localStorage.getItem(STORAGE.favorites) || "[]")
+  JSON.parse(localStorage.getItem(STORAGE.favorites) || "[]"),
 );
 let favCache = JSON.parse(localStorage.getItem(STORAGE.fav_cache) || "{}");
 
-// ✅ preferences are separate
 let prefs = new Set(JSON.parse(localStorage.getItem(STORAGE.prefs) || "[]"));
 let prefsCache = JSON.parse(localStorage.getItem(STORAGE.prefs_cache) || "{}");
 
@@ -89,7 +81,6 @@ updateCounts();
   await Promise.all([hydrateLanguages(), hydrateLinguisticLevels()]);
 })();
 
-/* ---------- API helpers ---------- */
 async function apiGet(url) {
   const r = await fetch(url, { headers: { Accept: "application/json" } });
   if (!r.ok) throw new Error(`GET ${url} failed (${r.status})`);
@@ -114,11 +105,9 @@ async function apiMovie(id) {
   return data;
 }
 
-/* ---------- UI wiring ---------- */
 function wireUI() {
   els.themeBtn?.addEventListener("click", toggleTheme);
 
-  // favorites drawer
   els.openFavBtn?.addEventListener("click", openFavDrawer);
   els.closeFavBtn?.addEventListener("click", closeFavDrawer);
   els.clearFavBtn?.addEventListener("click", () => {
@@ -134,7 +123,6 @@ function wireUI() {
     }
   });
 
-  // preferences drawer
   els.openPrefsBtn?.addEventListener("click", openPrefsDrawer);
   els.closePrefsBtn?.addEventListener("click", closePrefsDrawer);
 
@@ -150,14 +138,11 @@ function wireUI() {
       persistPrefsCache();
       updateCounts();
       renderPrefs();
-      // update booth picks hearts
       repaintBoothPickHearts();
-      // sort might change
       renderCards(applySort(lastResults.slice()));
     }
   }
 
-  // language change
   els.langSelect?.addEventListener("change", async () => {
     selectedGenres = [];
     renderTags();
@@ -174,7 +159,6 @@ function wireUI() {
     await updateGenreSuggestions();
   });
 
-  // genres input
   els.genreInput?.addEventListener("keydown", async (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -193,13 +177,11 @@ function wireUI() {
     }
   });
 
-  // submit
   els.filters?.addEventListener("submit", async (e) => {
     e.preventDefault();
     await recommendAndRender();
   });
 
-  // reset optional filters
   els.resetBtn?.addEventListener("click", async () => {
     if (confirm("Clear all optional filters? (Language stays)")) {
       selectedGenres = [];
@@ -210,7 +192,6 @@ function wireUI() {
       els.yearMin.value = "";
       els.yearMax.value = "";
       els.linguisticLevel.value = "";
-      els.topN.value = 20;
 
       els.cards.innerHTML = "";
       els.chips.innerHTML = "";
@@ -218,24 +199,23 @@ function wireUI() {
         "Your movie recommendations will appear here (preferences are optional).";
       els.empty.hidden = true;
       lastResults = [];
+      if (els.matchCount) els.matchCount.textContent = "0";
+
       await updateGenreSuggestions();
     }
   });
 
-  // surprise
   els.shuffleBtn?.addEventListener("click", async () => {
     if (!lastResults.length) return;
     const pick = lastResults[Math.floor(Math.random() * lastResults.length)];
     await openDialog(pick.id);
   });
 
-  // sort
   els.sortSelect?.addEventListener("change", () => {
     if (!lastResults.length) return;
     renderCards(applySort(lastResults.slice()));
   });
 
-  // dialog favorite
   els.dialogFavBtn?.addEventListener("click", () => {
     if (!currentDialogId) return;
     toggleFavorite(currentDialogId);
@@ -245,7 +225,6 @@ function wireUI() {
     renderCards(applySort(lastResults.slice()));
   });
 
-  // click outside drawers
   document.addEventListener("click", (e) => {
     if (els.favDrawer?.classList.contains("open")) {
       if (
@@ -263,13 +242,12 @@ function wireUI() {
     }
   });
 
-  // ESC closes dialog
   els.dialog?.addEventListener("keydown", (e) => {
     if (e.key === "Escape") els.dialog.close();
   });
 }
 
-/* ---------- Booth Picks (Preferences) ---------- */
+/* Booth Picks */
 async function loadBoothPicks() {
   try {
     const data = await apiGet("/api/booth_picks");
@@ -284,7 +262,6 @@ function renderBoothPicks(list) {
   els.boothPicks.innerHTML = "";
 
   (list || []).slice(0, 20).forEach((m) => {
-    // cache into prefsCache (not favorites)
     cachePrefMovie(m);
 
     const card = document.createElement("article");
@@ -324,7 +301,6 @@ function renderBoothPicks(list) {
       setPickHeartUI(heart, String(m.id));
       updateCounts();
       renderPrefs();
-      // sort might change
       renderCards(applySort(lastResults.slice()));
     });
 
@@ -360,7 +336,7 @@ function setPickHeartUI(btn, id) {
   btn.classList.toggle("is-on", on);
 }
 
-/* ---------- Recommendations ---------- */
+/* Recommendations */
 async function recommendAndRender() {
   if (isPrinting) return;
   isPrinting = true;
@@ -378,12 +354,9 @@ async function recommendAndRender() {
   const loader = showCinematicLoader();
 
   try {
-    const topN = clampInt(els.topN.value, 1, 100) ?? 20;
-
     const payload = {
       lang,
       genres: selectedGenres,
-      top_n: topN,
       min_rating: numOrNull(els.minRating.value),
       max_runtime: numOrNull(els.maxRuntime.value),
       linguistic_level: normalizeMaybe(els.linguisticLevel.value),
@@ -397,10 +370,10 @@ async function recommendAndRender() {
 
     renderChips();
     animatePrinter();
-
     renderCards(applySort(result.slice()));
 
     els.empty.hidden = result.length !== 0;
+    if (els.matchCount) els.matchCount.textContent = String(result.length);
 
     const personalizationStatus =
       prefs.size >= 3
@@ -419,7 +392,7 @@ async function recommendAndRender() {
   }
 }
 
-/* ---------- Sorting ---------- */
+/* Sorting */
 function applySort(list) {
   const mode = (els.sortSelect?.value || "popular").trim();
 
@@ -430,12 +403,9 @@ function applySort(list) {
   if (mode === "recent") return list.sort((a, b) => yearInt(b) - yearInt(a));
   if (mode === "oldest") return list.sort((a, b) => yearInt(a) - yearInt(b));
 
-  // personalized (preferences-based)
   const profile = buildUserProfileFromPrefs();
-  if (!profile) {
-    // prefs are optional: fallback
+  if (!profile)
     return list.sort((a, b) => num(b.popularity) - num(a.popularity));
-  }
 
   return list
     .map((m) => ({ m, s: scoreMovie(m, profile) }))
@@ -446,13 +416,10 @@ function applySort(list) {
 function buildUserProfileFromPrefs() {
   const ids = [...prefs];
   const movies = ids.map((id) => prefsCache[String(id)]).filter(Boolean);
-
-  // ✅ require 3 for personalization
   if (movies.length < 3) return null;
 
   const gCount = new Map();
   let gTotal = 0;
-
   const years = [];
   const runtimes = [];
   const ratings = [];
@@ -475,9 +442,8 @@ function buildUserProfileFromPrefs() {
   });
 
   const genreWeights = {};
-  for (const [g, c] of gCount.entries()) {
+  for (const [g, c] of gCount.entries())
     genreWeights[g] = gTotal ? c / gTotal : 0;
-  }
 
   return {
     genreWeights,
@@ -522,12 +488,12 @@ function scoreMovie(m, profile) {
   );
 }
 
-/* ---------- Cards ---------- */
+/* Cards */
 function renderCards(list) {
   els.cards.innerHTML = "";
 
   list.forEach((m, index) => {
-    cacheFavMovie(m); // ok to cache movie details for dialog & favorites
+    cacheFavMovie(m);
 
     const card = document.createElement("article");
     card.className = "card";
@@ -555,9 +521,9 @@ function renderCards(list) {
 
     const sub = document.createElement("p");
     sub.className = "card__sub";
-    sub.textContent = `${safeOriginal(m)} • ${yearFromDate(
-      m.release_date
-    )} • ${(m.original_language || "??").toUpperCase()}`;
+    sub.textContent = `${safeOriginal(m)} • ${yearFromDate(m.release_date)} • ${(
+      m.original_language || "??"
+    ).toUpperCase()}`;
 
     left.appendChild(title);
     left.appendChild(sub);
@@ -568,14 +534,21 @@ function renderCards(list) {
     const fav = document.createElement("button");
     fav.className = "iconbtn iconbtn--heart";
     fav.type = "button";
-    fav.textContent = favorites.has(String(m.id)) ? "♥" : "♡";
-    fav.title = favorites.has(String(m.id))
-      ? "Remove from favorites"
-      : "Add to favorites";
+
+    const on = favorites.has(String(m.id));
+    fav.textContent = on ? "♥" : "♡";
+    fav.classList.toggle("is-on", on);
+    fav.title = on ? "Remove from Favorites" : "Add to Favorites (click ♥)";
+
     fav.addEventListener("click", (e) => {
       e.stopPropagation();
       toggleFavorite(m.id);
-      fav.textContent = favorites.has(String(m.id)) ? "♥" : "♡";
+      const nowOn = favorites.has(String(m.id));
+      fav.textContent = nowOn ? "♥" : "♡";
+      fav.classList.toggle("is-on", nowOn);
+      fav.title = nowOn
+        ? "Remove from Favorites"
+        : "Add to Favorites (click ♥)";
       updateCounts();
       renderFav();
     });
@@ -625,7 +598,7 @@ function renderCards(list) {
   });
 }
 
-/* ---------- Chips (light mode readability) ---------- */
+/* Chips */
 function renderChips() {
   els.chips.innerHTML = "";
   const chips = [];
@@ -648,8 +621,6 @@ function renderChips() {
   const ll = (els.linguisticLevel.value || "").trim();
   if (ll) chips.push(`Level: ${ll.replace(/\b\w/g, (c) => c.toUpperCase())}`);
 
-  chips.push(`TopN: ${clampInt(els.topN.value, 1, 100) ?? 20}`);
-
   chips.forEach((t) => {
     const c = document.createElement("span");
     c.className = "chip";
@@ -664,7 +635,7 @@ function animatePrinter() {
   els.printer.classList.add("is-printing");
 }
 
-/* ---------- Dialog ---------- */
+/* Dialog */
 async function openDialog(id) {
   currentDialogId = String(id);
 
@@ -728,7 +699,7 @@ function renderDialog(m) {
   els.dialogFavBtn.textContent = isFav ? "♥ Remove Favorite" : "♡ Add Favorite";
 }
 
-/* ---------- Favorites + Preferences storage ---------- */
+/* Storage */
 function toggleFavorite(id) {
   id = String(id);
   if (favorites.has(id)) favorites.delete(id);
@@ -773,7 +744,7 @@ function updateCounts() {
   if (els.prefCount) els.prefCount.textContent = String(prefs.size);
 }
 
-/* ---------- Drawers ---------- */
+/* Drawers */
 function openFavDrawer() {
   els.favDrawer.classList.add("open");
   els.favDrawer.setAttribute("aria-hidden", "false");
@@ -793,7 +764,7 @@ function closePrefsDrawer() {
   els.prefsDrawer.setAttribute("aria-hidden", "true");
 }
 
-/* ---------- Render Favorites drawer ---------- */
+/* Render Favorites */
 function renderFav() {
   els.favList.innerHTML = "";
   const ids = [...favorites];
@@ -815,8 +786,8 @@ function renderFav() {
     box.innerHTML = `
       <h3 class="favitem__title">${escapeHtml(safeTitle(m))}</h3>
       <p class="favitem__sub">${escapeHtml(safeOriginal(m))} • ${(
-      m.original_language || "??"
-    ).toUpperCase()} • ${escapeHtml(m.release_date || "Unknown date")}</p>
+        m.original_language || "??"
+      ).toUpperCase()} • ${escapeHtml(m.release_date || "Unknown date")}</p>
       <div class="favitem__row">
         <button class="btn btn--ghost" type="button" data-open="1">Details</button>
         <button class="btn btn--ghost" type="button" data-rm="1">Remove</button>
@@ -829,12 +800,13 @@ function renderFav() {
       toggleFavorite(m.id);
       updateCounts();
       renderFav();
+      renderCards(applySort(lastResults.slice()));
     });
     els.favList.appendChild(box);
   });
 }
 
-/* ---------- Render Preferences drawer ---------- */
+/* Render Preferences */
 function renderPrefs() {
   els.prefsList.innerHTML = "";
   const ids = [...prefs];
@@ -856,8 +828,8 @@ function renderPrefs() {
     box.innerHTML = `
       <h3 class="favitem__title">${escapeHtml(safeTitle(m))}</h3>
       <p class="favitem__sub">${escapeHtml(safeOriginal(m))} • ${(
-      m.original_language || "??"
-    ).toUpperCase()} • ${escapeHtml(m.release_date || "Unknown date")}</p>
+        m.original_language || "??"
+      ).toUpperCase()} • ${escapeHtml(m.release_date || "Unknown date")}</p>
       <div class="favitem__row">
         <button class="btn btn--ghost" type="button" data-open="1">Details</button>
         <button class="btn btn--ghost" type="button" data-rm="1">Remove</button>
@@ -871,12 +843,13 @@ function renderPrefs() {
       updateCounts();
       renderPrefs();
       repaintBoothPickHearts();
+      renderCards(applySort(lastResults.slice()));
     });
     els.prefsList.appendChild(box);
   });
 }
 
-/* ---------- Genres ---------- */
+/* Genres */
 function addGenre(g) {
   if (!g) return;
   if (selectedGenres.includes(g)) return;
@@ -911,7 +884,7 @@ async function updateGenreSuggestions() {
 
   if (!lang) {
     els.langInfo.textContent =
-      "Language is required. Choose one to see available genres.";
+      "Language is required. Choose one to see available genres (optional).";
     return;
   }
 
@@ -944,7 +917,7 @@ async function updateGenreSuggestions() {
     });
 }
 
-/* ---------- Hydration ---------- */
+/* Hydration */
 async function hydrateLanguages() {
   els.langSelect.innerHTML = `<option value="">— Choose a language —</option>`;
   const data = await apiGet("/api/languages");
@@ -977,7 +950,7 @@ async function hydrateLinguisticLevels() {
   });
 }
 
-/* ---------- Theme ---------- */
+/* Theme */
 function initTheme() {
   const saved = localStorage.getItem(STORAGE.theme) || "dark";
   setTheme(saved);
@@ -995,7 +968,7 @@ function setTheme(t) {
   }
 }
 
-/* ---------- Helpers ---------- */
+/* Helpers */
 function normalizeLang(v) {
   return String(v || "")
     .trim()
@@ -1047,11 +1020,6 @@ function num(v) {
   const x = Number(v);
   return Number.isFinite(x) ? x : -1;
 }
-function clampInt(v, a, b) {
-  const n = parseInt(String(v), 10);
-  if (Number.isNaN(n)) return null;
-  return Math.max(a, Math.min(b, n));
-}
 function numOrNull(v) {
   const s = String(v || "").trim();
   if (!s) return null;
@@ -1082,7 +1050,7 @@ function escapeHtml(s) {
     .replaceAll("'", "&#039;");
 }
 
-/* ---------- Loader ---------- */
+/* Loader */
 function showCinematicLoader() {
   const loader = document.createElement("div");
   loader.className = "cinematic-loader";

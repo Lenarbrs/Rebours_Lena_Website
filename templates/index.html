@@ -85,45 +85,46 @@
     <main class="stage-vertical">
       <section class="booth-vertical">
         <div class="panel panel--paper">
-          <!-- ✅ NEW: Intro box to clarify “only language required” -->
-          <div
-            class="intro-callout"
-            role="note"
-            aria-label="How to use CinéLingua"
-          >
+          <!-- ✅ Intro box: in English, describes the project + clarifies filters -->
+          <div class="intro-callout" role="note" aria-label="Introduction">
             <div class="intro-callout__left">
-              <h3 class="intro-callout__title">🎬 Bienvenue sur CinéLingua</h3>
+              <h3 class="intro-callout__title">🎬 Welcome to CinéLingua</h3>
               <p class="intro-callout__text">
-                <strong>Seule la langue est obligatoire.</strong>
-                Les autres filtres sont <strong>facultatifs</strong> : ajoute-en
-                1 ou 2 si tu veux affiner, mais tu peux très bien laisser le
-                reste vide.
+                CinéLingua is a cultural movie recommendation project designed
+                for language learners. It helps you discover films in your
+                target language while exploring cinema beyond mainstream
+                algorithms.
+              </p>
+              <p class="intro-callout__text">
+                <strong>Only the choice of a language is required.</strong> All
+                other filters are optional, use them only if you want to narrow
+                down results.
               </p>
               <ol class="intro-callout__steps">
-                <li><strong>Choisis une langue</strong> (obligatoire)</li>
+                <li><strong>Pick a language</strong> (required)</li>
                 <li>
-                  <strong>Optionnel :</strong> genres / note / durée / années /
-                  niveau
+                  <strong>Optional:</strong> genres / rating / runtime / years /
+                  level
                 </li>
                 <li>
-                  Clique <strong>🖨️ Print My Ticket</strong> pour afficher les
+                  Click <strong>🖨️ Print My Ticket</strong> to show all matching
                   films
                 </li>
               </ol>
               <p class="intro-callout__hint">
-                Astuce : clique sur <strong>♥</strong> sur une carte pour
-                l’ajouter à tes <strong>Favoris</strong>.
+                Tip: click <strong>♥</strong> on any movie card to save it to
+                <strong>Favorites</strong>.
               </p>
             </div>
 
             <div class="intro-callout__right">
               <div class="intro-callout__pill">
-                ♥ = Favoris
-                <small>Retrouve-les en haut à droite</small>
+                ♥ Favorites
+                <small>Save movies for later</small>
               </div>
               <div class="intro-callout__pill">
                 ⭐ Booth Picks
-                <small>Optionnel : améliore “Best for you”</small>
+                <small>Optional: improves “Best for you” sorting</small>
               </div>
             </div>
           </div>
@@ -249,7 +250,7 @@
                 </select>
               </div>
 
-              <!-- ✅ REMOVED: Number of films (topN) -->
+              <!-- ✅ Number of films removed -->
             </div>
 
             <div class="actions">
@@ -276,11 +277,11 @@
             </div>
 
             <div class="mini-actions mini-actions--row">
-              <!-- ✅ NEW: number of matching movies -->
+              <!-- ✅ Count of matching films -->
               <span
                 class="pill pill--count"
                 id="matchCount"
-                title="Number of matching films"
+                title="Matching films"
                 >0</span
               >
 
@@ -304,7 +305,7 @@
 
           <div id="activeChips" class="chips" aria-label="Active filters"></div>
 
-          <!-- ✅ NEW: tip to make favorites obvious -->
+          <!-- ✅ Tip to make Favorites obvious -->
           <p class="screen-tip" id="screenTip">
             Tip: tap <strong>♥</strong> on any movie card to save it to your
             Favorites.

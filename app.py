@@ -59,7 +59,6 @@ _CACHE = {
 
 # ======================================================
 # Booth Picks — YOUR CURATED LIST (20)
-# (global list, independent of language)
 # ======================================================
 BOOTH_PICKS = [
     {"title": "Parasite", "year": 2019},
@@ -93,12 +92,6 @@ def normalize_lang(v):
 def normalize_genres(arr):
     return [str(g).strip().lower() for g in (arr or []) if str(g).strip()]
 
-def clamp_int(v, a, b, d):
-    try:
-        return max(a, min(b, int(v)))
-    except Exception:
-        return d
-
 def safe_float(v):
     try:
         return float(v)
@@ -116,7 +109,6 @@ def poster_url(path):
         return f"{TMDB_IMG_BASE}{path}"
     return None
 
-# SQL snippet to extract year from release_date (robust)
 YEAR_SQL = r"""
 CASE
   WHEN release_date IS NOT NULL AND release_date::text ~ '^\d{4}'
@@ -231,23 +223,20 @@ def api_movie(movie_id):
         release_db(conn)
 
 # ======================================================
-# API — Booth Picks (GLOBAL LIST, shown after language chosen)
+# API — Booth Picks
 # ======================================================
 @app.get("/api/booth_picks")
 def api_booth_picks():
-    # optional refresh
     refresh = request.args.get("refresh") == "1"
     c = _CACHE["booth_picks"]
     if (not refresh) and c["data"] and time.time() - c["ts"] < CACHE_TTL:
         return jsonify({"results": c["data"], "count": len(c["data"])})
 
-    # Build VALUES list for (title, year)
     values_sql = ", ".join(["(%s, %s)"] * len(BOOTH_PICKS))
     params = []
     for p in BOOTH_PICKS:
         params.extend([p["title"], p["year"]])
 
-    # Try matching by title (or original_title) + year extracted from release_date
     sql = f"""
     WITH picks(title, y) AS (
       VALUES {values_sql}
@@ -274,11 +263,9 @@ def api_booth_picks():
             cur.execute(sql, params)
             rows = cur.fetchall()
 
-        # add poster_url
         for r in rows:
             r["poster_url"] = poster_url(r.get("poster_path"))
 
-        # If some titles not found in your DB, fill with ultra-popular fallback
         if len(rows) < len(BOOTH_PICKS):
             missing = len(BOOTH_PICKS) - len(rows)
             conn2 = get_db()
@@ -303,9 +290,11 @@ def api_booth_picks():
     finally:
         release_db(conn)
 
+# ======================================================
+# API — stats
+# ======================================================
 @app.get("/api/stats")
 def api_stats():
-    # optional refresh
     refresh = request.args.get("refresh") == "1"
     c = _CACHE["stats"]
     if (not refresh) and c["data"] and time.time() - c["ts"] < CACHE_TTL:
@@ -314,11 +303,9 @@ def api_stats():
     conn = get_db()
     try:
         with conn.cursor() as cur:
-            # total
             cur.execute(f"SELECT COUNT(*) FROM {TABLE_NAME};")
             total = cur.fetchone()[0] or 0
 
-            # top languages
             cur.execute(f"""
                 SELECT LOWER(original_language) AS label, COUNT(*) AS count
                 FROM {TABLE_NAME}
@@ -329,7 +316,6 @@ def api_stats():
             """)
             languages = [{"label": r[0], "count": r[1]} for r in cur.fetchall()]
 
-            # top levels
             cur.execute(f"""
                 SELECT LOWER(linguistic_level) AS label, COUNT(*) AS count
                 FROM {TABLE_NAME}
@@ -340,7 +326,6 @@ def api_stats():
             """)
             levels = [{"label": r[0], "count": r[1]} for r in cur.fetchall()]
 
-            # top genres
             cur.execute(f"""
                 SELECT LOWER(g) AS label, COUNT(*) AS count
                 FROM {TABLE_NAME}
@@ -352,7 +337,6 @@ def api_stats():
             """)
             genres = [{"label": r[0], "count": r[1]} for r in cur.fetchall()]
 
-            # years histogram
             cur.execute(f"""
                 SELECT {YEAR_SQL} AS year, COUNT(*)
                 FROM {TABLE_NAME}
@@ -376,10 +360,10 @@ def api_stats():
     finally:
         release_db(conn)
 
-
 # ======================================================
 # API — recommendations (language required, others optional)
-# + yearMin/yearMax optional filters
+# ✅ NO top_n required
+# ✅ NO LIMIT by default (returns ALL matches)
 # ======================================================
 @app.post("/api/recommendations")
 def api_recommendations():
@@ -390,7 +374,6 @@ def api_recommendations():
         return jsonify({"error": "lang required"}), 400
 
     genres = normalize_genres(data.get("genres"))
-    top_n = clamp_int(data.get("top_n"), 1, 100, 20)
     min_rating = safe_float(data.get("min_rating"))
     max_runtime = safe_float(data.get("max_runtime"))
     level = normalize_lang(data.get("linguistic_level"))
@@ -417,7 +400,6 @@ def api_recommendations():
         where.append("LOWER(linguistic_level) = %s")
         params.append(level)
 
-    # year range on extracted year from release_date
     if year_min is not None:
         where.append(f"({YEAR_SQL}) >= %s")
         params.append(year_min)
@@ -430,10 +412,8 @@ def api_recommendations():
         SELECT *
         FROM {TABLE_NAME}
         WHERE {' AND '.join(where)}
-        ORDER BY popularity DESC NULLS LAST
-        LIMIT %s;
+        ORDER BY popularity DESC NULLS LAST;
     """
-    params.append(top_n)
 
     conn = get_db()
     try:
