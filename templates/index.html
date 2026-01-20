@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -85,6 +85,49 @@
     <main class="stage-vertical">
       <section class="booth-vertical">
         <div class="panel panel--paper">
+          <!-- ✅ NEW: Intro box to clarify “only language required” -->
+          <div
+            class="intro-callout"
+            role="note"
+            aria-label="How to use CinéLingua"
+          >
+            <div class="intro-callout__left">
+              <h3 class="intro-callout__title">🎬 Bienvenue sur CinéLingua</h3>
+              <p class="intro-callout__text">
+                <strong>Seule la langue est obligatoire.</strong>
+                Les autres filtres sont <strong>facultatifs</strong> : ajoute-en
+                1 ou 2 si tu veux affiner, mais tu peux très bien laisser le
+                reste vide.
+              </p>
+              <ol class="intro-callout__steps">
+                <li><strong>Choisis une langue</strong> (obligatoire)</li>
+                <li>
+                  <strong>Optionnel :</strong> genres / note / durée / années /
+                  niveau
+                </li>
+                <li>
+                  Clique <strong>🖨️ Print My Ticket</strong> pour afficher les
+                  films
+                </li>
+              </ol>
+              <p class="intro-callout__hint">
+                Astuce : clique sur <strong>♥</strong> sur une carte pour
+                l’ajouter à tes <strong>Favoris</strong>.
+              </p>
+            </div>
+
+            <div class="intro-callout__right">
+              <div class="intro-callout__pill">
+                ♥ = Favoris
+                <small>Retrouve-les en haut à droite</small>
+              </div>
+              <div class="intro-callout__pill">
+                ⭐ Booth Picks
+                <small>Optionnel : améliore “Best for you”</small>
+              </div>
+            </div>
+          </div>
+
           <div class="panel__head">
             <h2 class="panel__title">🎟️ The Ticket Booth</h2>
             <p class="panel__sub">
@@ -206,17 +249,7 @@
                 </select>
               </div>
 
-              <div class="field">
-                <label class="label" for="topN">Number of films</label>
-                <input
-                  id="topN"
-                  class="control"
-                  type="number"
-                  min="1"
-                  max="100"
-                  value="20"
-                />
-              </div>
+              <!-- ✅ REMOVED: Number of films (topN) -->
             </div>
 
             <div class="actions">
@@ -243,6 +276,14 @@
             </div>
 
             <div class="mini-actions mini-actions--row">
+              <!-- ✅ NEW: number of matching movies -->
+              <span
+                class="pill pill--count"
+                id="matchCount"
+                title="Number of matching films"
+                >0</span
+              >
+
               <select
                 id="sortSelect"
                 class="control control--mini"
@@ -262,6 +303,12 @@
           </div>
 
           <div id="activeChips" class="chips" aria-label="Active filters"></div>
+
+          <!-- ✅ NEW: tip to make favorites obvious -->
+          <p class="screen-tip" id="screenTip">
+            Tip: tap <strong>♥</strong> on any movie card to save it to your
+            Favorites.
+          </p>
 
           <div class="ticket-slot">
             <div id="ticketPrinter" class="printer" aria-hidden="true"></div>
