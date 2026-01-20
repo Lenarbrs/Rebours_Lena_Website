@@ -2147,3 +2147,63 @@ html {
     max-height: 32vh;
   }
 }
+
+/* =========================
+   Load More (center + readable in light mode)
+   ========================= */
+
+.loadmore {
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* ✅ center horizontally */
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1.1rem 1.6rem 1.6rem;
+  text-align: center; /* ✅ text centered */
+}
+
+.loadmore__meta {
+  margin: 0;
+  font-family: var(--mono);
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+}
+
+/* --- Light mode on velvet screen: force readable colors --- */
+[data-theme="light"] .panel--velvet .loadmore__meta {
+  color: rgba(255, 255, 255, 0.95); /* ✅ readable on red */
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.35);
+}
+
+/* Button: centered + high contrast in light mode on velvet */
+[data-theme="light"] .panel--velvet #loadMoreBtn.btn--ghost {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.45);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+[data-theme="light"] .panel--velvet #loadMoreBtn.btn--ghost:hover {
+  background: rgba(0, 0, 0, 0.28);
+}
+
+/* Optional: make it look like a primary call-to-action */
+[data-theme="light"] .panel--velvet #loadMoreBtn.btn--ghost:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.22);
+}
+
+/* Dark mode: keep it elegant */
+[data-theme="dark"] .panel--velvet .loadmore__meta {
+  color: rgba(246, 240, 222, 0.9);
+}
+
+[data-theme="dark"] .panel--velvet #loadMoreBtn.btn--ghost {
+  color: var(--gold);
+  border-color: rgba(212, 175, 55, 0.35);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="dark"] .panel--velvet #loadMoreBtn.btn--ghost:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
