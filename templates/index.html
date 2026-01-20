@@ -96,9 +96,9 @@
                 algorithms.
               </p>
               <p class="intro-callout__text">
-                <strong>Only the choice of a language is required.</strong> All
-                other filters are optional, use them only if you want to narrow
-                down results.
+                <strong>Only the language is required.</strong> All other
+                filters are optional — use them only if you want to narrow down
+                results.
               </p>
               <ol class="intro-callout__steps">
                 <li><strong>Pick a language</strong> (required)</li>
@@ -314,6 +314,13 @@
           <div class="ticket-slot">
             <div id="ticketPrinter" class="printer" aria-hidden="true"></div>
             <div id="cards" class="cards" aria-live="polite"></div>
+
+            <div class="loadmore" id="loadMoreWrap" hidden>
+              <p class="loadmore__meta" id="loadMoreMeta">Showing 0 of 0</p>
+              <button id="loadMoreBtn" class="btn btn--ghost" type="button">
+                Load more
+              </button>
+            </div>
 
             <div id="emptyState" class="empty" hidden>
               <div class="empty__content">

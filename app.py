@@ -92,6 +92,12 @@ def normalize_lang(v):
 def normalize_genres(arr):
     return [str(g).strip().lower() for g in (arr or []) if str(g).strip()]
 
+def clamp_int(v, a, b, d):
+    try:
+        return max(a, min(b, int(v)))
+    except Exception:
+        return d
+
 def safe_float(v):
     try:
         return float(v)
@@ -109,6 +115,7 @@ def poster_url(path):
         return f"{TMDB_IMG_BASE}{path}"
     return None
 
+# SQL snippet to extract year from release_date (robust)
 YEAR_SQL = r"""
 CASE
   WHEN release_date IS NOT NULL AND release_date::text ~ '^\d{4}'
@@ -242,18 +249,13 @@ def api_booth_picks():
       VALUES {values_sql}
     ),
     movies_with_year AS (
-      SELECT
-        m.*,
-        {YEAR_SQL} AS year_int
+      SELECT m.*, {YEAR_SQL} AS year_int
       FROM {TABLE_NAME} m
     )
     SELECT mw.*
     FROM picks p
     JOIN movies_with_year mw
-      ON (
-        LOWER(mw.title) = LOWER(p.title)
-        OR LOWER(mw.original_title) = LOWER(p.title)
-      )
+      ON (LOWER(mw.title) = LOWER(p.title) OR LOWER(mw.original_title) = LOWER(p.title))
      AND mw.year_int = p.y;
     """
 
@@ -291,7 +293,7 @@ def api_booth_picks():
         release_db(conn)
 
 # ======================================================
-# API — stats
+# API — stats (unchanged)
 # ======================================================
 @app.get("/api/stats")
 def api_stats():
@@ -361,9 +363,8 @@ def api_stats():
         release_db(conn)
 
 # ======================================================
-# API — recommendations (language required, others optional)
-# ✅ NO top_n required
-# ✅ NO LIMIT by default (returns ALL matches)
+# API — recommendations (paginated)
+# language required, others optional
 # ======================================================
 @app.post("/api/recommendations")
 def api_recommendations():
@@ -377,9 +378,12 @@ def api_recommendations():
     min_rating = safe_float(data.get("min_rating"))
     max_runtime = safe_float(data.get("max_runtime"))
     level = normalize_lang(data.get("linguistic_level"))
-
     year_min = safe_int(data.get("year_min"))
     year_max = safe_int(data.get("year_max"))
+
+    # ✅ pagination (default 20)
+    limit = clamp_int(data.get("limit"), 1, 60, 20)     # 1..60 (safe for UI)
+    offset = clamp_int(data.get("offset"), 0, 500000, 0)
 
     where = ["LOWER(original_language) = %s"]
     params = [lang]
@@ -408,23 +412,45 @@ def api_recommendations():
         where.append(f"({YEAR_SQL}) <= %s")
         params.append(year_max)
 
-    sql = f"""
+    where_sql = " AND ".join(where)
+
+    sql_count = f"""
+        SELECT COUNT(*) AS total
+        FROM {TABLE_NAME}
+        WHERE {where_sql};
+    """
+
+    sql_page = f"""
         SELECT *
         FROM {TABLE_NAME}
-        WHERE {' AND '.join(where)}
-        ORDER BY popularity DESC NULLS LAST;
+        WHERE {where_sql}
+        ORDER BY popularity DESC NULLS LAST
+        LIMIT %s OFFSET %s;
     """
 
     conn = get_db()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(sql, params)
+            cur.execute(sql_count, params)
+            total = int(cur.fetchone()["total"] or 0)
+
+            page_params = params + [limit, offset]
+            cur.execute(sql_page, page_params)
             rows = cur.fetchall()
 
         for r in rows:
             r["poster_url"] = poster_url(r.get("poster_path"))
 
-        return jsonify({"results": rows, "count": len(rows)})
+        has_more = (offset + len(rows)) < total
+
+        return jsonify({
+            "results": rows,
+            "count": len(rows),
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "has_more": has_more,
+        })
     finally:
         release_db(conn)
 

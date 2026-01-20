@@ -40,6 +40,11 @@ const els = {
   printer: $("#ticketPrinter"),
   matchCount: $("#matchCount"),
 
+  // ✅ load more UI (NEW)
+  loadMoreWrap: $("#loadMoreWrap"),
+  loadMoreBtn: $("#loadMoreBtn"),
+  loadMoreMeta: $("#loadMoreMeta"),
+
   dialog: $("#movieDialog"),
   dialogTitle: $("#dialogTitle"),
   dialogSub: $("#dialogSub"),
@@ -70,7 +75,15 @@ let prefs = new Set(JSON.parse(localStorage.getItem(STORAGE.prefs) || "[]"));
 let prefsCache = JSON.parse(localStorage.getItem(STORAGE.prefs_cache) || "{}");
 
 let currentDialogId = null;
+
+// results/pagination state
 let lastResults = [];
+let basePayload = null;
+let totalMatches = 0;
+let currentOffset = 0;
+let pageLimit = 20;
+let hasMore = false;
+let isFetchingMore = false;
 let isPrinting = false;
 
 initTheme();
@@ -108,6 +121,7 @@ async function apiMovie(id) {
 function wireUI() {
   els.themeBtn?.addEventListener("click", toggleTheme);
 
+  // favorites drawer
   els.openFavBtn?.addEventListener("click", openFavDrawer);
   els.closeFavBtn?.addEventListener("click", closeFavDrawer);
   els.clearFavBtn?.addEventListener("click", () => {
@@ -119,13 +133,13 @@ function wireUI() {
       persistFavCache();
       updateCounts();
       renderFav();
-      renderCards(applySort(lastResults.slice()));
+      renderCards(applySort(lastResults.slice()), { append: false });
     }
   });
 
+  // preferences drawer
   els.openPrefsBtn?.addEventListener("click", openPrefsDrawer);
   els.closePrefsBtn?.addEventListener("click", closePrefsDrawer);
-
   els.clearPrefsBtn?.addEventListener("click", () => clearPreferences());
   els.clearPrefsDrawerBtn?.addEventListener("click", () => clearPreferences());
 
@@ -139,10 +153,11 @@ function wireUI() {
       updateCounts();
       renderPrefs();
       repaintBoothPickHearts();
-      renderCards(applySort(lastResults.slice()));
+      renderCards(applySort(lastResults.slice()), { append: false });
     }
   }
 
+  // language change
   els.langSelect?.addEventListener("change", async () => {
     selectedGenres = [];
     renderTags();
@@ -159,6 +174,7 @@ function wireUI() {
     await updateGenreSuggestions();
   });
 
+  // genres input
   els.genreInput?.addEventListener("keydown", async (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -177,11 +193,13 @@ function wireUI() {
     }
   });
 
+  // submit (Print)
   els.filters?.addEventListener("submit", async (e) => {
     e.preventDefault();
-    await recommendAndRender();
+    await recommendAndRenderFirstPage();
   });
 
+  // reset optional filters
   els.resetBtn?.addEventListener("click", async () => {
     if (confirm("Clear all optional filters? (Language stays)")) {
       selectedGenres = [];
@@ -193,38 +211,48 @@ function wireUI() {
       els.yearMax.value = "";
       els.linguisticLevel.value = "";
 
-      els.cards.innerHTML = "";
-      els.chips.innerHTML = "";
-      els.resultsMeta.textContent =
-        "Your movie recommendations will appear here (preferences are optional).";
-      els.empty.hidden = true;
-      lastResults = [];
-      if (els.matchCount) els.matchCount.textContent = "0";
-
+      resetResultsUI();
       await updateGenreSuggestions();
     }
   });
 
+  // surprise
   els.shuffleBtn?.addEventListener("click", async () => {
     if (!lastResults.length) return;
     const pick = lastResults[Math.floor(Math.random() * lastResults.length)];
     await openDialog(pick.id);
   });
 
+  // sort (only affects current loaded set)
   els.sortSelect?.addEventListener("change", () => {
     if (!lastResults.length) return;
-    renderCards(applySort(lastResults.slice()));
+    renderCards(applySort(lastResults.slice()), { append: false });
   });
 
+  // dialog favorite
   els.dialogFavBtn?.addEventListener("click", () => {
     if (!currentDialogId) return;
     toggleFavorite(currentDialogId);
     renderDialogFromCacheOrState(currentDialogId);
     updateCounts();
     renderFav();
-    renderCards(applySort(lastResults.slice()));
+    renderCards(applySort(lastResults.slice()), { append: false });
   });
 
+  // ✅ Load more button
+  els.loadMoreBtn?.addEventListener("click", async () => {
+    await fetchMore();
+  });
+
+  // ✅ Auto-load on scroll near bottom (light infinite scroll)
+  window.addEventListener("scroll", async () => {
+    if (!hasMore || isFetchingMore) return;
+    const nearBottom =
+      window.innerHeight + window.scrollY >= document.body.offsetHeight - 700;
+    if (nearBottom) await fetchMore();
+  });
+
+  // click outside drawers
   document.addEventListener("click", (e) => {
     if (els.favDrawer?.classList.contains("open")) {
       if (
@@ -242,9 +270,152 @@ function wireUI() {
     }
   });
 
+  // ESC closes dialog
   els.dialog?.addEventListener("keydown", (e) => {
     if (e.key === "Escape") els.dialog.close();
   });
+}
+
+function resetResultsUI() {
+  els.cards.innerHTML = "";
+  els.chips.innerHTML = "";
+  els.resultsMeta.textContent =
+    "Your movie recommendations will appear here (preferences are optional).";
+  els.empty.hidden = true;
+
+  lastResults = [];
+  basePayload = null;
+  totalMatches = 0;
+  currentOffset = 0;
+  pageLimit = 20;
+  hasMore = false;
+
+  if (els.matchCount) els.matchCount.textContent = "0";
+  updateLoadMoreUI();
+}
+
+function updateLoadMoreUI() {
+  const showing = lastResults.length;
+  const total = totalMatches;
+
+  if (els.matchCount) els.matchCount.textContent = String(total);
+
+  if (!basePayload || total === 0) {
+    els.loadMoreWrap.hidden = true;
+    return;
+  }
+
+  els.loadMoreMeta.textContent = `Showing ${showing} of ${total}`;
+  els.loadMoreWrap.hidden = !hasMore;
+  els.loadMoreBtn.disabled = !hasMore;
+}
+
+async function recommendAndRenderFirstPage() {
+  if (isPrinting) return;
+  isPrinting = true;
+
+  const submitBtn = els.filters?.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.disabled = true;
+
+  const lang = normalizeLang(els.langSelect.value);
+  if (!lang) {
+    if (submitBtn) submitBtn.disabled = false;
+    isPrinting = false;
+    return;
+  }
+
+  const loader = showCinematicLoader();
+
+  try {
+    basePayload = {
+      lang,
+      genres: selectedGenres,
+      min_rating: numOrNull(els.minRating.value),
+      max_runtime: numOrNull(els.maxRuntime.value),
+      linguistic_level: normalizeMaybe(els.linguisticLevel.value),
+      year_min: intOrNull(els.yearMin.value),
+      year_max: intOrNull(els.yearMax.value),
+    };
+
+    currentOffset = 0;
+    pageLimit = 20;
+
+    const data = await apiPost("/api/recommendations", {
+      ...basePayload,
+      limit: pageLimit,
+      offset: currentOffset,
+    });
+
+    const result = data.results || [];
+    totalMatches = Number(data.total || result.length || 0);
+    hasMore = Boolean(data.has_more);
+
+    lastResults = result;
+    currentOffset = lastResults.length;
+
+    renderChips();
+    animatePrinter();
+    renderCards(applySort(result.slice()), { append: false });
+
+    els.empty.hidden = totalMatches !== 0;
+
+    const personalizationStatus =
+      prefs.size >= 3
+        ? "Personalization: ON"
+        : "Personalization: OFF (preferences optional)";
+    els.resultsMeta.textContent = totalMatches
+      ? `🎟️ Ticket printed: ${totalMatches} matching film(s) • Loaded: ${lastResults.length} • Language: ${lang} • ${personalizationStatus}`
+      : `🎬 No matching films found. Try adjusting your criteria.`;
+
+    updateLoadMoreUI();
+  } catch (error) {
+    console.error(error);
+  } finally {
+    loader.remove();
+    if (submitBtn) submitBtn.disabled = false;
+    isPrinting = false;
+  }
+}
+
+async function fetchMore() {
+  if (!basePayload || !hasMore || isFetchingMore) return;
+  isFetchingMore = true;
+
+  try {
+    els.loadMoreBtn.textContent = "Loading…";
+    els.loadMoreBtn.disabled = true;
+
+    const data = await apiPost("/api/recommendations", {
+      ...basePayload,
+      limit: pageLimit,
+      offset: currentOffset,
+    });
+
+    const newItems = data.results || [];
+    totalMatches = Number(data.total || totalMatches);
+    hasMore = Boolean(data.has_more);
+
+    // append, then re-sort just the loaded set if you want:
+    // but resorting everything on each append is expensive.
+    // We'll append raw order (popularity desc from backend), and keep sort selection effect
+    // by re-applying sort on ALL loaded items (safe because it's only the loaded subset).
+    lastResults = lastResults.concat(newItems);
+    currentOffset = lastResults.length;
+
+    renderCards(applySort(lastResults.slice()), { append: false });
+
+    els.resultsMeta.textContent = totalMatches
+      ? `🎟️ Loaded ${lastResults.length} / ${totalMatches} matching film(s)`
+      : els.resultsMeta.textContent;
+
+    updateLoadMoreUI();
+  } catch (e) {
+    console.error(e);
+  } finally {
+    els.loadMoreBtn.textContent = "Load more";
+    els.loadMoreBtn.disabled = !hasMore;
+    isFetchingMore = false;
+  }
 }
 
 /* Booth Picks */
@@ -284,9 +455,7 @@ function renderBoothPicks(list) {
 
     const s = document.createElement("div");
     s.className = "pick__sub";
-    s.textContent = `${yearFromDate(m.release_date)} • ${(
-      m.original_language || "??"
-    ).toUpperCase()}`;
+    s.textContent = `${yearFromDate(m.release_date)} • ${(m.original_language || "??").toUpperCase()}`;
 
     const heart = document.createElement("button");
     heart.className = "pick__fav";
@@ -301,7 +470,7 @@ function renderBoothPicks(list) {
       setPickHeartUI(heart, String(m.id));
       updateCounts();
       renderPrefs();
-      renderCards(applySort(lastResults.slice()));
+      renderCards(applySort(lastResults.slice()), { append: false });
     });
 
     meta.appendChild(t);
@@ -334,62 +503,6 @@ function setPickHeartUI(btn, id) {
   btn.textContent = on ? "♥" : "♡";
   btn.title = on ? "Remove preference" : "Add preference";
   btn.classList.toggle("is-on", on);
-}
-
-/* Recommendations */
-async function recommendAndRender() {
-  if (isPrinting) return;
-  isPrinting = true;
-
-  const submitBtn = els.filters?.querySelector('button[type="submit"]');
-  if (submitBtn) submitBtn.disabled = true;
-
-  const lang = normalizeLang(els.langSelect.value);
-  if (!lang) {
-    if (submitBtn) submitBtn.disabled = false;
-    isPrinting = false;
-    return;
-  }
-
-  const loader = showCinematicLoader();
-
-  try {
-    const payload = {
-      lang,
-      genres: selectedGenres,
-      min_rating: numOrNull(els.minRating.value),
-      max_runtime: numOrNull(els.maxRuntime.value),
-      linguistic_level: normalizeMaybe(els.linguisticLevel.value),
-      year_min: intOrNull(els.yearMin.value),
-      year_max: intOrNull(els.yearMax.value),
-    };
-
-    const data = await apiPost("/api/recommendations", payload);
-    const result = data.results || [];
-    lastResults = result;
-
-    renderChips();
-    animatePrinter();
-    renderCards(applySort(result.slice()));
-
-    els.empty.hidden = result.length !== 0;
-    if (els.matchCount) els.matchCount.textContent = String(result.length);
-
-    const personalizationStatus =
-      prefs.size >= 3
-        ? "Personalization: ON"
-        : "Personalization: OFF (preferences optional)";
-
-    els.resultsMeta.textContent = result.length
-      ? `🎟️ Ticket printed: ${result.length} film(s) • Language: ${lang} • ${personalizationStatus}`
-      : `🎬 No matching films found. Try adjusting your criteria.`;
-  } catch (error) {
-    console.error(error);
-  } finally {
-    loader.remove();
-    if (submitBtn) submitBtn.disabled = false;
-    isPrinting = false;
-  }
 }
 
 /* Sorting */
@@ -489,8 +602,8 @@ function scoreMovie(m, profile) {
 }
 
 /* Cards */
-function renderCards(list) {
-  els.cards.innerHTML = "";
+function renderCards(list, { append } = { append: false }) {
+  if (!append) els.cards.innerHTML = "";
 
   list.forEach((m, index) => {
     cacheFavMovie(m);
@@ -499,7 +612,7 @@ function renderCards(list) {
     card.className = "card";
     card.tabIndex = 0;
     card.setAttribute("role", "button");
-    card.style.animationDelay = `${(index + 1) * 0.06}s`;
+    card.style.animationDelay = `${(index + 1) * 0.04}s`;
 
     const content = document.createElement("div");
     content.className = "card__content";
@@ -521,9 +634,7 @@ function renderCards(list) {
 
     const sub = document.createElement("p");
     sub.className = "card__sub";
-    sub.textContent = `${safeOriginal(m)} • ${yearFromDate(m.release_date)} • ${(
-      m.original_language || "??"
-    ).toUpperCase()}`;
+    sub.textContent = `${safeOriginal(m)} • ${yearFromDate(m.release_date)} • ${(m.original_language || "??").toUpperCase()}`;
 
     left.appendChild(title);
     left.appendChild(sub);
@@ -673,10 +784,7 @@ function renderDialog(m) {
   if (posterDiv) posterDiv.style.backgroundImage = `url("${posterSrc(m)}")`;
 
   els.dialogTitle.textContent = safeTitle(m);
-  els.dialogSub.textContent = `${safeOriginal(m)} • ${(
-    m.original_language || "??"
-  ).toUpperCase()} • ${m.release_date || "Unknown date"}`;
-
+  els.dialogSub.textContent = `${safeOriginal(m)} • ${(m.original_language || "??").toUpperCase()} • ${m.release_date || "Unknown date"}`;
   els.dialogOverview.textContent =
     m.overview || "No synopsis available for this movie.";
 
@@ -699,28 +807,25 @@ function renderDialog(m) {
   els.dialogFavBtn.textContent = isFav ? "♥ Remove Favorite" : "♡ Add Favorite";
 }
 
-/* Storage */
+/* Favorites + Prefs storage */
 function toggleFavorite(id) {
   id = String(id);
   if (favorites.has(id)) favorites.delete(id);
   else favorites.add(id);
   persistFavorites();
 }
-
 function togglePref(id) {
   id = String(id);
   if (prefs.has(id)) prefs.delete(id);
   else prefs.add(id);
   persistPrefs();
 }
-
 function persistFavorites() {
   localStorage.setItem(STORAGE.favorites, JSON.stringify([...favorites]));
 }
 function persistPrefs() {
   localStorage.setItem(STORAGE.prefs, JSON.stringify([...prefs]));
 }
-
 function cacheFavMovie(m) {
   if (!m || !m.id) return;
   favCache[String(m.id)] = m;
@@ -731,14 +836,12 @@ function cachePrefMovie(m) {
   prefsCache[String(m.id)] = m;
   persistPrefsCache();
 }
-
 function persistFavCache() {
   localStorage.setItem(STORAGE.fav_cache, JSON.stringify(favCache));
 }
 function persistPrefsCache() {
   localStorage.setItem(STORAGE.prefs_cache, JSON.stringify(prefsCache));
 }
-
 function updateCounts() {
   if (els.favCount) els.favCount.textContent = String(favorites.size);
   if (els.prefCount) els.prefCount.textContent = String(prefs.size);
@@ -785,9 +888,7 @@ function renderFav() {
     box.className = "favitem";
     box.innerHTML = `
       <h3 class="favitem__title">${escapeHtml(safeTitle(m))}</h3>
-      <p class="favitem__sub">${escapeHtml(safeOriginal(m))} • ${(
-        m.original_language || "??"
-      ).toUpperCase()} • ${escapeHtml(m.release_date || "Unknown date")}</p>
+      <p class="favitem__sub">${escapeHtml(safeOriginal(m))} • ${(m.original_language || "??").toUpperCase()} • ${escapeHtml(m.release_date || "Unknown date")}</p>
       <div class="favitem__row">
         <button class="btn btn--ghost" type="button" data-open="1">Details</button>
         <button class="btn btn--ghost" type="button" data-rm="1">Remove</button>
@@ -800,7 +901,7 @@ function renderFav() {
       toggleFavorite(m.id);
       updateCounts();
       renderFav();
-      renderCards(applySort(lastResults.slice()));
+      renderCards(applySort(lastResults.slice()), { append: false });
     });
     els.favList.appendChild(box);
   });
@@ -827,9 +928,7 @@ function renderPrefs() {
     box.className = "favitem";
     box.innerHTML = `
       <h3 class="favitem__title">${escapeHtml(safeTitle(m))}</h3>
-      <p class="favitem__sub">${escapeHtml(safeOriginal(m))} • ${(
-        m.original_language || "??"
-      ).toUpperCase()} • ${escapeHtml(m.release_date || "Unknown date")}</p>
+      <p class="favitem__sub">${escapeHtml(safeOriginal(m))} • ${(m.original_language || "??").toUpperCase()} • ${escapeHtml(m.release_date || "Unknown date")}</p>
       <div class="favitem__row">
         <button class="btn btn--ghost" type="button" data-open="1">Details</button>
         <button class="btn btn--ghost" type="button" data-rm="1">Remove</button>
@@ -843,7 +942,7 @@ function renderPrefs() {
       updateCounts();
       renderPrefs();
       repaintBoothPickHearts();
-      renderCards(applySort(lastResults.slice()));
+      renderCards(applySort(lastResults.slice()), { append: false });
     });
     els.prefsList.appendChild(box);
   });
