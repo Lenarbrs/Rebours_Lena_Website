@@ -1,62 +1,132 @@
-// static/stats.js const $ = (s) => document.querySelector(s); const els = {
-themeBtn: $("#themeBtn"), totalMovies: $("#totalMovies"), statsEmpty:
-$("#statsEmpty"), chartLanguages: $("#chartLanguages"), chartLevels:
-$("#chartLevels"), chartGenres: $("#chartGenres"), chartYears: $("#chartYears"),
-}; const STORAGE = { theme: "cinelingua.theme" }; let charts = []; initTheme();
-els.themeBtn?.addEventListener("click", toggleTheme); boot(); async function
-apiGet(url) { const r = await fetch(url, { headers: { Accept: "application/json"
-} }); if (!r.ok) throw new Error(`GET ${url} failed (${r.status})`); return
-await r.json(); } async function boot() { const data = await
-apiGet("/api/stats").catch(() => null); const total = Number(data?.total_movies
-?? 0); els.totalMovies.textContent = String(total); if (!data ||
-!Number.isFinite(total) || total <= 0) { els.statsEmpty.hidden = false;
-destroyCharts(); return; } els.statsEmpty.hidden = true; destroyCharts();
-charts.push( makeBar(els.chartLanguages, normalizeItems(data.languages_top),
-"Count") ); charts.push( makeBar(els.chartLevels,
-normalizeItems(data.levels_top), "Count") ); charts.push(
-makeBar(els.chartGenres, normalizeItems(data.genres_top), "Count") ); //
-HISTOGRAMME: toutes les années triées + autoskip ticks const years =
-normalizeYearDistribution(data.years_distribution);
-charts.push(makeYearHistogram(els.chartYears, years)); } function
-destroyCharts() { charts.forEach((c) => c?.destroy?.()); charts = []; } function
-themeIsDark() { const t = document.documentElement.getAttribute("data-theme") ||
-"dark"; return t === "dark"; } function axisColor() { return themeIsDark() ?
-"rgba(245, 240, 230, 0.78)" : "rgba(26, 21, 19, 0.72)"; } function gridColor() {
-return themeIsDark() ? "rgba(212, 175, 55, 0.15)" : "rgba(139, 0, 0, 0.10)"; }
-/* Supports [{label,value}] OR {label: value} */ function normalizeItems(input)
-{ let items = []; if (Array.isArray(input)) { items = input .filter((x) => x &&
-typeof x === "object") .map((x) => ({ label: String(x.label ?? x.name ?? x.key
-?? ""), value: Number(x.value ?? x.count ?? 0) || 0, })); } else if (input &&
-typeof input === "object") { items = Object.entries(input).map(([k, v]) => ({
-label: String(k), value: Number(v) || 0, })); } return items.filter((x) =>
-x.label); } /* years_distribution can be dict OR list; return [{year, count}]
-sorted asc */ function normalizeYearDistribution(input) { let pairs = []; if
-(Array.isArray(input)) { pairs = input.map((x) => ({ year: Number(x.year ??
-x.label), count: Number(x.count ?? x.value ?? 0) || 0, })); } else if (input &&
-typeof input === "object") { pairs = Object.entries(input).map(([k, v]) => ({
-year: Number(k), count: Number(v) || 0, })); } pairs = pairs .filter((x) =>
-Number.isFinite(x.year) && x.year > 0) .sort((a, b) => a.year - b.year); return
-pairs; } function makeBar(canvas, items, yLabel) { const labels = (items ||
-[]).map((x) => x.label); const values = (items || []).map((x) => x.value);
-return new Chart(canvas, { type: "bar", data: { labels, datasets: [{ label:
-yLabel, data: values }] }, options: baseOptions(), }); } function
-makeYearHistogram(canvas, pairs) { const labels = pairs.map((x) =>
-String(x.year)); const values = pairs.map((x) => x.count); return new
-Chart(canvas, { type: "bar", data: { labels, datasets: [{ label: "Films", data:
-values }], }, options: { ...baseOptions(), plugins: { ...baseOptions().plugins,
-legend: { display: false }, // histogramme: pas besoin }, scales: { x: { ticks:
-{ color: axisColor(), autoSkip: true, maxTicksLimit: 14, // évite que ça
-devienne illisible }, grid: { color: gridColor() }, }, y: { ticks: { color:
-axisColor() }, grid: { color: gridColor() }, beginAtZero: true, }, }, }, }); }
-function baseOptions() { return { responsive: true, maintainAspectRatio: false,
-plugins: { legend: { labels: { color: axisColor() } }, tooltip: { enabled: true
-}, }, scales: { x: { ticks: { color: axisColor() }, grid: { color: gridColor() }
-}, y: { ticks: { color: axisColor() }, grid: { color: gridColor() } }, }, }; }
-function initTheme() { const saved = localStorage.getItem(STORAGE.theme) ||
-"dark"; setTheme(saved); } function toggleTheme() { const cur =
-document.documentElement.getAttribute("data-theme") || "dark"; setTheme(cur ===
-"dark" ? "light" : "dark"); setTimeout(() => boot(), 0); } function setTheme(t)
-{ document.documentElement.setAttribute("data-theme", t);
-localStorage.setItem(STORAGE.theme, t); if (els.themeBtn) {
-els.themeBtn.setAttribute("aria-pressed", t === "light" ? "true" : "false");
-els.themeBtn.innerHTML = t === "dark" ? "🌙 Dark Mode" : "☀️ Light Mode"; } }
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>CinéLingua — Dataset Stats</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Space+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      href="{{ url_for('static', filename='movie-icone-ticket-removebg.png') }}"
+    />
+
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='styles.css') }}"
+    />
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  </head>
+
+  <body>
+    <div class="grain" aria-hidden="true"></div>
+
+    <header class="masthead">
+      <div class="brand">
+        <img
+          class="brand__logo"
+          src="{{ url_for('static', filename='movie-icone-ticket-removebg.png') }}"
+          alt="Cinema ticket icon"
+        />
+        <div class="brand__text">
+          <h1 class="brand__title">CinéLingua</h1>
+          <p class="brand__tagline">Dataset statistics and distributions</p>
+        </div>
+      </div>
+
+      <div class="masthead__actions">
+        <a class="btn btn--ghost" href="{{ url_for('home') }}">← Back</a>
+        <button
+          id="themeBtn"
+          class="btn btn--ghost"
+          type="button"
+          aria-pressed="false"
+        >
+          🌙 Dark Mode
+        </button>
+      </div>
+    </header>
+
+    <main class="stage-vertical">
+      <section class="booth-vertical">
+        <div class="panel panel--paper">
+          <div class="panel__head panel__head--row">
+            <div>
+              <h2 class="panel__title">Dataset Overview</h2>
+              <p class="panel__sub">
+                Quick view of distributions: languages, levels, genres, years
+              </p>
+            </div>
+
+            <div class="mini-actions">
+              <span class="pill" id="totalMovies">0</span>
+            </div>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stats-card">
+              <div class="stats-card__head">
+                <h3 class="stats-card__title">Top languages</h3>
+                <p class="stats-card__sub">Most frequent original languages</p>
+              </div>
+              <div class="stats-card__body">
+                <canvas id="chartLanguages"></canvas>
+              </div>
+            </div>
+
+            <div class="stats-card">
+              <div class="stats-card__head">
+                <h3 class="stats-card__title">Linguistic level</h3>
+                <p class="stats-card__sub">Beginner → advanced distribution</p>
+              </div>
+              <div class="stats-card__body">
+                <canvas id="chartLevels"></canvas>
+              </div>
+            </div>
+
+            <div class="stats-card">
+              <div class="stats-card__head">
+                <h3 class="stats-card__title">Top genres</h3>
+                <p class="stats-card__sub">Most frequent genres</p>
+              </div>
+              <div class="stats-card__body">
+                <canvas id="chartGenres"></canvas>
+              </div>
+            </div>
+
+            <div class="stats-card">
+              <div class="stats-card__head">
+                <h3 class="stats-card__title">Release years</h3>
+                <p class="stats-card__sub">Most common release years</p>
+              </div>
+              <div class="stats-card__body">
+                <canvas id="chartYears"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div id="statsEmpty" class="empty" hidden>
+            <div class="empty__content">
+              <h3>📉 No data to display</h3>
+              <p>The dataset is empty or could not be loaded.</p>
+              <ul>
+                <li>Check your CSV path</li>
+                <li>Restart the Flask server</li>
+                <li>Verify required columns exist</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='stats.js') }}"></script>
+  </body>
+</html>
