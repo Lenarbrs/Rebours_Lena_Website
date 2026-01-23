@@ -332,7 +332,7 @@ def api_stats():
             cur.execute(f"SELECT COUNT(*) FROM {TABLE_NAME};")
             total = cur.fetchone()[0] or 0
 
-            # ✅ ALL languages (no LIMIT) — si tu veux garder la liste
+            # ✅ ALL languages (no LIMIT)
             cur.execute(f"""
                 SELECT LOWER(original_language) AS label, COUNT(*) AS count
                 FROM {TABLE_NAME}
@@ -341,20 +341,9 @@ def api_stats():
                 ORDER BY count DESC, label ASC;
             """)
             languages_all = [{"label": r[0], "count": r[1]} for r in cur.fetchall()]
-            languages_top = languages_all[:12]
 
-            # ✅ NEW: production countries (text[])
-            # Suppose production_countries is a TEXT[] of ISO2 country codes (FR, US, GB, ...)
-            cur.execute(f"""
-                SELECT UPPER(TRIM(c)) AS label, COUNT(*) AS count
-                FROM {TABLE_NAME}
-                CROSS JOIN LATERAL unnest(production_countries) c
-                WHERE c IS NOT NULL AND TRIM(c) <> ''
-                GROUP BY 1
-                ORDER BY count DESC, label ASC;
-            """)
-            countries_all = [{"label": r[0], "count": r[1]} for r in cur.fetchall()]
-            countries_top = countries_all[:12]
+            # ✅ TOP languages for chart (keep small)
+            languages_top = languages_all[:12]
 
             cur.execute(f"""
                 SELECT LOWER(linguistic_level) AS label, COUNT(*) AS count
@@ -388,15 +377,8 @@ def api_stats():
 
         payload = {
             "total_movies": int(total),
-
-            # keep these if you still want charts/lists
-            "languages_top": languages_top,
-            "languages_all": languages_all,
-
-            # ✅ NEW
-            "countries_top": countries_top,
-            "countries_all": countries_all,
-
+            "languages_top": languages_top,   # chart
+            "languages_all": languages_all,   # ✅ map + list
             "levels_top": levels,
             "genres_top": genres,
             "years_distribution": years,
