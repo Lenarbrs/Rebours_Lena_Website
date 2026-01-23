@@ -317,7 +317,7 @@ def api_booth_picks():
         release_db(conn)
 
 # ======================================================
-# API — stats (UPDATED: languages_all)
+# API — stats (UPDATED: languages_all + countries_all)
 # ======================================================
 @app.get("/api/stats")
 def api_stats():
@@ -375,13 +375,25 @@ def api_stats():
             """)
             years = [{"year": r[0], "count": r[1]} for r in cur.fetchall() if r[0]]
 
+            # ✅ NEW: production_countries distribution (by country name)
+            cur.execute(f"""
+                SELECT TRIM(c) AS label, COUNT(*) AS count
+                FROM {TABLE_NAME}
+                CROSS JOIN LATERAL unnest(production_countries) c
+                WHERE c IS NOT NULL AND TRIM(c) <> ''
+                GROUP BY 1
+                ORDER BY count DESC, label ASC;
+            """)
+            countries_all = [{"label": r[0], "count": r[1]} for r in cur.fetchall()]
+
         payload = {
             "total_movies": int(total),
-            "languages_top": languages_top,   # chart
-            "languages_all": languages_all,   # ✅ map + list
+            "languages_top": languages_top,    # chart
+            "languages_all": languages_all,    # list
             "levels_top": levels,
             "genres_top": genres,
             "years_distribution": years,
+            "countries_all": countries_all,    # ✅ map
         }
 
         c["data"] = payload
@@ -392,7 +404,6 @@ def api_stats():
 
 # ======================================================
 # API — recommendations (paginated)
-# language required, others optional
 # ======================================================
 @app.post("/api/recommendations")
 def api_recommendations():

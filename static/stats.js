@@ -8,7 +8,8 @@ const els = {
   chartLevels: $("#chartLevels"),
   chartGenres: $("#chartGenres"),
   chartYears: $("#chartYears"),
-  mapCountries: $("#mapCountries"), // ✅ NEW
+  mapCountries: $("#mapCountries"),
+  langList: $("#langList"),
 };
 
 const STORAGE = { theme: "cinelingua.theme" };
@@ -42,7 +43,7 @@ async function boot() {
 
   destroyChartsAndMap();
 
-  // Charts (si tu veux garder)
+  // Charts
   charts.push(
     makeBar(els.chartLanguages, normalizeItems(data.languages_top), "Count"),
   );
@@ -59,9 +60,13 @@ async function boot() {
     ),
   );
 
-  // ✅ NEW: countries choropleth
+  // ✅ Countries choropleth (by country names)
   const countriesAll = normalizeItems(data.countries_all || []);
   await makeCountriesChoroplethMap(els.mapCountries, countriesAll);
+
+  // ✅ All languages list (si tu veux)
+  const langsAll = normalizeItems(data.languages_all || []);
+  renderLangList(els.langList, langsAll);
 }
 
 function destroyChartsAndMap() {
@@ -131,7 +136,7 @@ function normalizeYearDistribution(input) {
 }
 
 /* -------------------------
-   Charts (unchanged)
+   Charts
 ------------------------- */
 function baseOptions() {
   return {
@@ -187,22 +192,17 @@ function makeYearHistogram(canvas, pairs) {
 }
 
 /* =========================
-   ✅ Countries choropleth map
-   - Uses GeoJSON with ISO_A2 codes
-   - Light mode tiles = white-ish (Carto Positron)
+   ✅ Countries choropleth map (NAME-based)
    ========================= */
-
 async function makeCountriesChoroplethMap(container, items) {
   if (!container) return;
 
-  // build {ISO2: count}
+  // build {countryNameNormalized: count}
   const counts = {};
   for (const it of items || []) {
-    const iso2 = String(it.label || "")
-      .trim()
-      .toUpperCase();
-    if (!iso2) continue;
-    counts[iso2] = (counts[iso2] || 0) + (Number(it.value) || 0);
+    const key = normCountryName(it.label || "");
+    if (!key) continue;
+    counts[key] = (counts[key] || 0) + (Number(it.value) || 0);
   }
 
   const values = Object.values(counts);
@@ -219,8 +219,6 @@ async function makeCountriesChoroplethMap(container, items) {
     attribution: tileAttribution(),
   }).addTo(map);
 
-  // GeoJSON world countries (ISO_A2)
-  // Dataset generally includes properties like ISO_A2 / ISO2 / id; we handle a few fallbacks.
   const geojsonUrl =
     "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson";
   const gj = await fetch(geojsonUrl)
@@ -230,51 +228,48 @@ async function makeCountriesChoroplethMap(container, items) {
 
   geoLayer = L.geoJSON(gj, {
     style: (feature) => {
-      const iso = getIso2(feature);
-      const v = iso ? counts[iso] || 0 : 0;
+      const name = normCountryName(getCountryName(feature));
+      const v = name ? counts[name] || 0 : 0;
       return countryStyle(v, max);
     },
     onEachFeature: (feature, layer) => {
-      const name =
-        feature?.properties?.ADMIN ||
-        feature?.properties?.name ||
-        feature?.properties?.NAME ||
-        "Country";
-      const iso = getIso2(feature);
-      const v = iso ? counts[iso] || 0 : 0;
+      const rawName = getCountryName(feature) || "Country";
+      const name = normCountryName(rawName);
+      const v = name ? counts[name] || 0 : 0;
+
       layer.bindTooltip(
-        `<b>${escapeHtml(String(name))}</b>${iso ? ` (${iso})` : ""}<br/>Films: ${v}`,
+        `<b>${escapeHtml(String(rawName))}</b><br/>Films: ${v}`,
         { sticky: true, opacity: 0.95 },
       );
     },
   }).addTo(map);
+
+  // ✅ FIX: Leaflet in grid/cards needs invalidateSize after layout paints
+  setTimeout(() => map?.invalidateSize?.(), 0);
 }
 
-function getIso2(feature) {
+function getCountryName(feature) {
   const p = feature?.properties || {};
-  const iso =
-    p.ISO_A2 || p.ISO2 || p.iso2 || p.ISO_2 || p["ISO3166-1-Alpha-2"] || p.ISO;
-  if (!iso) return null;
-  const s = String(iso).trim().toUpperCase();
-  // Some datasets use "-99" for missing
-  if (!s || s === "-99") return null;
-  return s;
+  return p.ADMIN || p.name || p.NAME || p.NAME_EN || "";
+}
+
+function normCountryName(s) {
+  return String(s).trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 function countryStyle(v, max) {
   const baseStroke = themeIsDark()
     ? "rgba(212,175,55,0.25)"
     : "rgba(139,0,0,0.22)";
-  const stroke = baseStroke;
 
-  // intensity 0..1
   const t = !max ? 0 : Math.sqrt(v / max);
+
   const fill = themeIsDark()
-    ? `rgba(212,175,55,${0.08 + t * 0.55})` // gold
-    : `rgba(139,0,0,${0.06 + t * 0.45})`; // velvet red
+    ? `rgba(212,175,55,${0.08 + t * 0.55})`
+    : `rgba(139,0,0,${0.06 + t * 0.45})`;
 
   return {
-    color: stroke,
+    color: baseStroke,
     weight: 1,
     opacity: 0.9,
     fillColor: fill,
@@ -283,7 +278,6 @@ function countryStyle(v, max) {
 }
 
 function tileUrl() {
-  // ✅ Light mode: "white" tiles (Positron)
   return themeIsDark()
     ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
     : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
@@ -294,12 +288,40 @@ function tileAttribution() {
 }
 
 function escapeHtml(s) {
-  return s
+  return String(s)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+/* =========================
+   ✅ All languages list (optional)
+   ========================= */
+function renderLangList(container, items) {
+  if (!container) return;
+  const rows = (items || []).slice();
+
+  container.innerHTML = `
+    <p class="langlist__meta">Languages: ${rows.length}</p>
+    <div class="langlist__table">
+      <div class="langrow langrow--head">
+        <div>Language</div>
+        <div style="text-align:right">Count</div>
+      </div>
+      ${rows
+        .map(
+          (x) => `
+        <div class="langrow">
+          <div class="langrow__code">${escapeHtml(x.label)}</div>
+          <div class="langrow__count">${Number(x.value) || 0}</div>
+        </div>
+      `,
+        )
+        .join("")}
+    </div>
+  `;
 }
 
 /* Theme */
