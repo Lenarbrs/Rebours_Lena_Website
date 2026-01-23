@@ -85,49 +85,32 @@
     <main class="stage-vertical">
       <section class="booth-vertical">
         <div class="panel panel--paper">
-          <!-- ✅ Intro box: in English, describes the project + clarifies filters -->
-          <div class="intro-callout" role="note" aria-label="Introduction">
-            <div class="intro-callout__left">
-              <h3 class="intro-callout__title">🎬 Welcome to CinéLingua</h3>
-              <p class="intro-callout__text">
-                CinéLingua is a cultural movie recommendation project designed
-                for language learners. It helps you discover films in your
-                target language while exploring cinema beyond mainstream
-                algorithms.
+          <!-- ✅ NEW: clean centered hero intro (less "AI") -->
+          <section class="hero" aria-label="CinéLingua introduction">
+            <div class="hero__inner">
+              <p class="hero__kicker">🎟️ CinéLingua</p>
+              <h2 class="hero__title">
+                Learn a language the way you already relax.
+              </h2>
+              <p class="hero__lead">
+                Pick a language, add a few optional filters, then print your
+                ticket. Save favorites and come back anytime.
               </p>
-              <p class="intro-callout__text">
-                <strong>Only the language is required.</strong> All other
-                filters are optional — use them only if you want to narrow down
-                results.
-              </p>
-              <ol class="intro-callout__steps">
-                <li><strong>Pick a language</strong> (required)</li>
-                <li>
-                  <strong>Optional:</strong> genres / rating / runtime / years /
-                  level
-                </li>
-                <li>
-                  Click <strong>🖨️ Print My Ticket</strong> to show all matching
-                  films
-                </li>
-              </ol>
-              <p class="intro-callout__hint">
-                Tip: click <strong>♥</strong> on any movie card to save it to
-                <strong>Favorites</strong>.
-              </p>
-            </div>
 
-            <div class="intro-callout__right">
-              <div class="intro-callout__pill">
-                ♥ Favorites
-                <small>Save movies for later</small>
-              </div>
-              <div class="intro-callout__pill">
-                ⭐ Booth Picks
-                <small>Optional: improves “Best for you” sorting</small>
+              <div class="hero__steps" role="list" aria-label="How it works">
+                <div class="hero__step" role="listitem">
+                  <span>1</span> Choose a language (required)
+                </div>
+                <div class="hero__step" role="listitem">
+                  <span>2</span> Optional: genres • years • duration • level •
+                  register
+                </div>
+                <div class="hero__step" role="listitem">
+                  <span>3</span> Print My Ticket → browse → ♥ save
+                </div>
               </div>
             </div>
-          </div>
+          </section>
 
           <div class="panel__head">
             <h2 class="panel__title">🎟️ The Ticket Booth</h2>
@@ -200,7 +183,24 @@
               ></div>
             </div>
 
+            <!-- ✅ Reordered grid: Linguistic level BEFORE rating, and Register right AFTER -->
             <div class="grid">
+              <div class="field">
+                <label class="label" for="linguisticLevel"
+                  >Linguistic level</label
+                >
+                <select id="linguisticLevel" class="control">
+                  <option value="">Any level</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label class="label" for="registerLevel">Register level</label>
+                <select id="registerLevel" class="control">
+                  <option value="">Any register</option>
+                </select>
+              </div>
+
               <div class="field">
                 <label class="label" for="minRating">Minimum rating /10</label>
                 <input
@@ -240,17 +240,6 @@
                   placeholder="ex: 2020"
                 />
               </div>
-
-              <div class="field">
-                <label class="label" for="linguisticLevel"
-                  >Linguistic level</label
-                >
-                <select id="linguisticLevel" class="control">
-                  <option value="">Any level</option>
-                </select>
-              </div>
-
-              <!-- ✅ Number of films removed -->
             </div>
 
             <div class="actions">
@@ -268,7 +257,7 @@
       <section class="screen-vertical">
         <div class="panel panel--velvet">
           <div class="panel__head panel__head--row">
-            <div>
+            <div class="screen-head-left">
               <h2 class="panel__title">📽️ The Cinema Screen</h2>
               <p id="resultsMeta" class="panel__sub">
                 Your movie recommendations will appear here (preferences are
@@ -276,8 +265,8 @@
               </p>
             </div>
 
+            <!-- ✅ stays aligned -->
             <div class="mini-actions mini-actions--row">
-              <!-- ✅ Count of matching films -->
               <span
                 class="pill pill--count"
                 id="matchCount"
@@ -305,7 +294,6 @@
 
           <div id="activeChips" class="chips" aria-label="Active filters"></div>
 
-          <!-- ✅ Tip to make Favorites obvious -->
           <p class="screen-tip" id="screenTip">
             Tip: tap <strong>♥</strong> on any movie card to save it to your
             Favorites.

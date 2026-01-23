@@ -53,6 +53,7 @@ CACHE_TTL = 24 * 3600
 _CACHE = {
     "languages": {"ts": 0, "data": None},
     "levels": {"ts": 0, "data": None},
+    "registers": {"ts": 0, "data": None},   # ✅ NEW
     "stats": {"ts": 0, "data": None},
     "booth_picks": {"ts": 0, "data": None},
 }
@@ -185,6 +186,30 @@ def api_levels():
         c["data"] = levels
         c["ts"] = time.time()
         return jsonify({"levels": levels})
+    finally:
+        release_db(conn)
+
+# ✅ NEW: linguistic registers endpoint
+@app.get("/api/linguistic_registers")
+def api_registers():
+    c = _CACHE["registers"]
+    if c["data"] and time.time() - c["ts"] < CACHE_TTL:
+        return jsonify({"registers": c["data"]})
+
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                SELECT DISTINCT LOWER(linguistic_register)
+                FROM {TABLE_NAME}
+                WHERE linguistic_register IS NOT NULL AND TRIM(linguistic_register) <> ''
+                ORDER BY 1;
+            """)
+            registers = [r[0] for r in cur.fetchall() if r[0]]
+
+        c["data"] = registers
+        c["ts"] = time.time()
+        return jsonify({"registers": registers})
     finally:
         release_db(conn)
 
@@ -378,11 +403,12 @@ def api_recommendations():
     min_rating = safe_float(data.get("min_rating"))
     max_runtime = safe_float(data.get("max_runtime"))
     level = normalize_lang(data.get("linguistic_level"))
+    register = normalize_lang(data.get("linguistic_register"))  # ✅ NEW
     year_min = safe_int(data.get("year_min"))
     year_max = safe_int(data.get("year_max"))
 
-    # ✅ pagination (default 20)
-    limit = clamp_int(data.get("limit"), 1, 60, 20)     # 1..60 (safe for UI)
+    # pagination
+    limit = clamp_int(data.get("limit"), 1, 60, 20)
     offset = clamp_int(data.get("offset"), 0, 500000, 0)
 
     where = ["LOWER(original_language) = %s"]
@@ -392,6 +418,14 @@ def api_recommendations():
         where.append("ARRAY(SELECT LOWER(x) FROM unnest(genres) x) && %s")
         params.append(genres)
 
+    if level:
+        where.append("LOWER(linguistic_level) = %s")
+        params.append(level)
+
+    if register:
+        where.append("LOWER(linguistic_register) = %s")
+        params.append(register)
+
     if min_rating is not None:
         where.append("vote_average >= %s")
         params.append(min_rating)
@@ -399,10 +433,6 @@ def api_recommendations():
     if max_runtime is not None:
         where.append("runtime <= %s")
         params.append(max_runtime)
-
-    if level:
-        where.append("LOWER(linguistic_level) = %s")
-        params.append(level)
 
     if year_min is not None:
         where.append(f"({YEAR_SQL}) >= %s")

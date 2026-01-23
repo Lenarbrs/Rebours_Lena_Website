@@ -31,6 +31,7 @@ const els = {
   resetBtn: $("#resetBtn"),
   shuffleBtn: $("#shuffleBtn"),
   linguisticLevel: $("#linguisticLevel"),
+  registerLevel: $("#registerLevel"), // ✅ NEW
   sortSelect: $("#sortSelect"),
 
   cards: $("#cards"),
@@ -40,7 +41,6 @@ const els = {
   printer: $("#ticketPrinter"),
   matchCount: $("#matchCount"),
 
-  // ✅ load more UI (NEW)
   loadMoreWrap: $("#loadMoreWrap"),
   loadMoreBtn: $("#loadMoreBtn"),
   loadMoreMeta: $("#loadMoreMeta"),
@@ -91,7 +91,11 @@ wireUI();
 updateCounts();
 
 (async function boot() {
-  await Promise.all([hydrateLanguages(), hydrateLinguisticLevels()]);
+  await Promise.all([
+    hydrateLanguages(),
+    hydrateLinguisticLevels(),
+    hydrateRegisterLevels(), // ✅ NEW
+  ]);
 })();
 
 async function apiGet(url) {
@@ -205,11 +209,12 @@ function wireUI() {
       selectedGenres = [];
       renderTags();
       els.genreInput.value = "";
+      els.linguisticLevel.value = "";
+      els.registerLevel.value = ""; // ✅ NEW
       els.minRating.value = "";
       els.maxRuntime.value = "";
       els.yearMin.value = "";
       els.yearMax.value = "";
-      els.linguisticLevel.value = "";
 
       resetResultsUI();
       await updateGenreSuggestions();
@@ -223,7 +228,7 @@ function wireUI() {
     await openDialog(pick.id);
   });
 
-  // sort (only affects current loaded set)
+  // sort (only affects already loaded set)
   els.sortSelect?.addEventListener("change", () => {
     if (!lastResults.length) return;
     renderCards(applySort(lastResults.slice()), { append: false });
@@ -239,12 +244,12 @@ function wireUI() {
     renderCards(applySort(lastResults.slice()), { append: false });
   });
 
-  // ✅ Load more button
+  // Load more button
   els.loadMoreBtn?.addEventListener("click", async () => {
     await fetchMore();
   });
 
-  // ✅ Auto-load on scroll near bottom (light infinite scroll)
+  // Auto-load on scroll near bottom
   window.addEventListener("scroll", async () => {
     if (!hasMore || isFetchingMore) return;
     const nearBottom =
@@ -330,9 +335,10 @@ async function recommendAndRenderFirstPage() {
     basePayload = {
       lang,
       genres: selectedGenres,
+      linguistic_level: normalizeMaybe(els.linguisticLevel.value),
+      linguistic_register: normalizeMaybe(els.registerLevel.value), // ✅ NEW
       min_rating: numOrNull(els.minRating.value),
       max_runtime: numOrNull(els.maxRuntime.value),
-      linguistic_level: normalizeMaybe(els.linguisticLevel.value),
       year_min: intOrNull(els.yearMin.value),
       year_max: intOrNull(els.yearMax.value),
     };
@@ -363,6 +369,7 @@ async function recommendAndRenderFirstPage() {
       prefs.size >= 3
         ? "Personalization: ON"
         : "Personalization: OFF (preferences optional)";
+
     els.resultsMeta.textContent = totalMatches
       ? `🎟️ Ticket printed: ${totalMatches} matching film(s) • Loaded: ${lastResults.length} • Language: ${lang} • ${personalizationStatus}`
       : `🎬 No matching films found. Try adjusting your criteria.`;
@@ -377,6 +384,10 @@ async function recommendAndRenderFirstPage() {
   }
 }
 
+/**
+ * ✅ FIX: Load more should APPEND only,
+ * not re-render & re-sort everything (which “reshuffles” what you saw).
+ */
 async function fetchMore() {
   if (!basePayload || !hasMore || isFetchingMore) return;
   isFetchingMore = true;
@@ -395,14 +406,12 @@ async function fetchMore() {
     totalMatches = Number(data.total || totalMatches);
     hasMore = Boolean(data.has_more);
 
-    // append, then re-sort just the loaded set if you want:
-    // but resorting everything on each append is expensive.
-    // We'll append raw order (popularity desc from backend), and keep sort selection effect
-    // by re-applying sort on ALL loaded items (safe because it's only the loaded subset).
+    // Keep backend order, append to what user already saw
     lastResults = lastResults.concat(newItems);
     currentOffset = lastResults.length;
 
-    renderCards(applySort(lastResults.slice()), { append: false });
+    // ✅ append cards only (keeps scroll context)
+    renderCards(newItems, { append: true });
 
     els.resultsMeta.textContent = totalMatches
       ? `🎟️ Loaded ${lastResults.length} / ${totalMatches} matching film(s)`
@@ -719,6 +728,13 @@ function renderChips() {
 
   if (selectedGenres.length) chips.push(`Genres: ${selectedGenres.join(", ")}`);
 
+  const ll = (els.linguisticLevel.value || "").trim();
+  if (ll) chips.push(`Level: ${ll.replace(/\b\w/g, (c) => c.toUpperCase())}`);
+
+  const rr = (els.registerLevel.value || "").trim();
+  if (rr)
+    chips.push(`Register: ${rr.replace(/\b\w/g, (c) => c.toUpperCase())}`);
+
   const mr = (els.minRating.value || "").trim();
   if (mr) chips.push(`Rating ≥ ${mr}`);
 
@@ -728,9 +744,6 @@ function renderChips() {
   const ym = (els.yearMin.value || "").trim();
   const yM = (els.yearMax.value || "").trim();
   if (ym || yM) chips.push(`Year: ${ym || "…"} → ${yM || "…"}`);
-
-  const ll = (els.linguisticLevel.value || "").trim();
-  if (ll) chips.push(`Level: ${ll.replace(/\b\w/g, (c) => c.toUpperCase())}`);
 
   chips.forEach((t) => {
     const c = document.createElement("span");
@@ -1046,6 +1059,25 @@ async function hydrateLinguisticLevels() {
     opt.value = String(lvl).toLowerCase();
     opt.textContent = String(lvl).replace(/\b\w/g, (c) => c.toUpperCase());
     els.linguisticLevel.appendChild(opt);
+  });
+}
+
+// ✅ NEW: registers hydration
+async function hydrateRegisterLevels() {
+  if (!els.registerLevel) return;
+  els.registerLevel.innerHTML = `<option value="">Any register</option>`;
+  let data;
+  try {
+    data = await apiGet("/api/linguistic_registers");
+  } catch {
+    return;
+  }
+  const registers = (data.registers || []).slice().sort();
+  registers.forEach((r) => {
+    const opt = document.createElement("option");
+    opt.value = String(r).toLowerCase();
+    opt.textContent = String(r).replace(/\b\w/g, (c) => c.toUpperCase());
+    els.registerLevel.appendChild(opt);
   });
 }
 
