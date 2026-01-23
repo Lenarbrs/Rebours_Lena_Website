@@ -22,7 +22,21 @@
       href="{{ url_for('static', filename='styles.css') }}"
     />
 
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <!-- Leaflet (World map) -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
   </head>
 
   <body>
@@ -108,6 +122,19 @@
               </div>
               <div class="stats-card__body">
                 <canvas id="chartYears"></canvas>
+              </div>
+            </div>
+
+            <!-- ✅ NEW: Full-width world map -->
+            <div class="stats-card stats-card--wide">
+              <div class="stats-card__head">
+                <h3 class="stats-card__title">Languages map</h3>
+                <p class="stats-card__sub">
+                  Bubble size = number of films (approx. by language region)
+                </p>
+              </div>
+              <div class="stats-card__body stats-card__body--map">
+                <div id="mapLanguages" class="map"></div>
               </div>
             </div>
           </div>

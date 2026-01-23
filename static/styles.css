@@ -2246,3 +2246,51 @@ html {
     flex-wrap: wrap;
   }
 }
+
+/* =========================
+   Stats — World map (Leaflet)
+   ========================= */
+
+.stats-card--wide {
+  grid-column: 1 / -1; /* full width inside stats grid */
+}
+
+.stats-card__body--map {
+  height: 420px; /* un peu plus haut que les charts */
+}
+
+.map {
+  width: 100%;
+  height: 100%;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--stroke);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.08);
+}
+
+/* Leaflet UI look aligned with your theme */
+.leaflet-control-zoom a {
+  border-radius: 10px !important;
+}
+
+[data-theme="dark"] .leaflet-control-zoom a {
+  background: rgba(0, 0, 0, 0.55) !important;
+  color: rgba(246, 240, 222, 0.92) !important;
+  border: 1px solid rgba(212, 175, 55, 0.25) !important;
+}
+
+[data-theme="light"] .leaflet-control-zoom a {
+  background: rgba(255, 255, 255, 0.92) !important;
+  color: #5c0000 !important;
+  border: 1px solid rgba(139, 0, 0, 0.18) !important;
+}
+
+/* Attribution readability */
+[data-theme="dark"] .leaflet-control-attribution {
+  background: rgba(0, 0, 0, 0.35) !important;
+  color: rgba(246, 240, 222, 0.75) !important;
+}
+
+[data-theme="dark"] .leaflet-control-attribution a {
+  color: rgba(212, 175, 55, 0.9) !important;
+}
