@@ -2362,3 +2362,23 @@ html {
   font-family: var(--mono);
   font-weight: 900;
 }
+
+/* Map container background */
+.map {
+  background: #ffffff; /* ✅ blanc en light mode */
+}
+
+[data-theme="dark"] .map {
+  background: #0b0908;
+}
+
+/* Leaflet attribution readability */
+[data-theme="light"] .leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.85) !important;
+  color: rgba(44, 36, 29, 0.75) !important;
+}
+
+[data-theme="dark"] .leaflet-control-attribution {
+  background: rgba(0, 0, 0, 0.35) !important;
+  color: rgba(246, 240, 222, 0.75) !important;
+}
