@@ -11,6 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Space+Mono:wght@400;700&display=swap"
       rel="stylesheet"
     />
+
     <link
       rel="icon"
       type="image/png"
@@ -25,7 +26,7 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
-    <!-- Leaflet (World map) -->
+    <!-- Leaflet -->
     <link
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -125,16 +126,27 @@
               </div>
             </div>
 
-            <!-- ✅ NEW: Full-width world map -->
+            <!-- FULL WIDTH: map -->
             <div class="stats-card stats-card--wide">
               <div class="stats-card__head">
                 <h3 class="stats-card__title">Languages map</h3>
                 <p class="stats-card__sub">
-                  Bubble size = number of films (approx. by language region)
+                  Bubble size = number of films (fallback for unknown languages)
                 </p>
               </div>
               <div class="stats-card__body stats-card__body--map">
                 <div id="mapLanguages" class="map"></div>
+              </div>
+            </div>
+
+            <!-- FULL WIDTH: all languages list -->
+            <div class="stats-card stats-card--wide">
+              <div class="stats-card__head">
+                <h3 class="stats-card__title">All languages</h3>
+                <p class="stats-card__sub">Complete list (sorted by count)</p>
+              </div>
+              <div class="stats-card__body stats-card__body--list">
+                <div id="langList" class="langlist"></div>
               </div>
             </div>
           </div>
@@ -144,7 +156,7 @@
               <h3>📉 No data to display</h3>
               <p>The dataset is empty or could not be loaded.</p>
               <ul>
-                <li>Check your CSV path</li>
+                <li>Check your DB / table name</li>
                 <li>Restart the Flask server</li>
                 <li>Verify required columns exist</li>
               </ul>

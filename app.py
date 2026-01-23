@@ -53,7 +53,7 @@ CACHE_TTL = 24 * 3600
 _CACHE = {
     "languages": {"ts": 0, "data": None},
     "levels": {"ts": 0, "data": None},
-    "registers": {"ts": 0, "data": None},   # ✅ NEW
+    "registers": {"ts": 0, "data": None},
     "stats": {"ts": 0, "data": None},
     "booth_picks": {"ts": 0, "data": None},
 }
@@ -189,7 +189,6 @@ def api_levels():
     finally:
         release_db(conn)
 
-# ✅ NEW: linguistic registers endpoint
 @app.get("/api/linguistic_registers")
 def api_registers():
     c = _CACHE["registers"]
@@ -318,7 +317,7 @@ def api_booth_picks():
         release_db(conn)
 
 # ======================================================
-# API — stats (unchanged)
+# API — stats (UPDATED: languages_all)
 # ======================================================
 @app.get("/api/stats")
 def api_stats():
@@ -333,15 +332,18 @@ def api_stats():
             cur.execute(f"SELECT COUNT(*) FROM {TABLE_NAME};")
             total = cur.fetchone()[0] or 0
 
+            # ✅ ALL languages (no LIMIT)
             cur.execute(f"""
                 SELECT LOWER(original_language) AS label, COUNT(*) AS count
                 FROM {TABLE_NAME}
                 WHERE original_language IS NOT NULL AND TRIM(original_language) <> ''
                 GROUP BY 1
-                ORDER BY count DESC
-                LIMIT 12;
+                ORDER BY count DESC, label ASC;
             """)
-            languages = [{"label": r[0], "count": r[1]} for r in cur.fetchall()]
+            languages_all = [{"label": r[0], "count": r[1]} for r in cur.fetchall()]
+
+            # ✅ TOP languages for chart (keep small)
+            languages_top = languages_all[:12]
 
             cur.execute(f"""
                 SELECT LOWER(linguistic_level) AS label, COUNT(*) AS count
@@ -374,8 +376,9 @@ def api_stats():
             years = [{"year": r[0], "count": r[1]} for r in cur.fetchall() if r[0]]
 
         payload = {
-            "total_movies": total,
-            "languages_top": languages,
+            "total_movies": int(total),
+            "languages_top": languages_top,   # chart
+            "languages_all": languages_all,   # ✅ map + list
             "levels_top": levels,
             "genres_top": genres,
             "years_distribution": years,
@@ -403,11 +406,10 @@ def api_recommendations():
     min_rating = safe_float(data.get("min_rating"))
     max_runtime = safe_float(data.get("max_runtime"))
     level = normalize_lang(data.get("linguistic_level"))
-    register = normalize_lang(data.get("linguistic_register"))  # ✅ NEW
+    register = normalize_lang(data.get("linguistic_register"))
     year_min = safe_int(data.get("year_min"))
     year_max = safe_int(data.get("year_max"))
 
-    # pagination
     limit = clamp_int(data.get("limit"), 1, 60, 20)
     offset = clamp_int(data.get("offset"), 0, 500000, 0)
 
