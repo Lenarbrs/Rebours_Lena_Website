@@ -317,7 +317,7 @@ def api_booth_picks():
         release_db(conn)
 
 # ======================================================
-# API — stats (UPDATED: languages_all)
+# API — stats 
 # ======================================================
 @app.get("/api/stats")
 def api_stats():
@@ -332,7 +332,9 @@ def api_stats():
             cur.execute(f"SELECT COUNT(*) FROM {TABLE_NAME};")
             total = cur.fetchone()[0] or 0
 
-            
+            # -------------------------
+            # Languages (all + top)
+            # -------------------------
             cur.execute(f"""
                 SELECT LOWER(original_language) AS label, COUNT(*) AS count
                 FROM {TABLE_NAME}
@@ -340,11 +342,12 @@ def api_stats():
                 GROUP BY 1
                 ORDER BY count DESC, label ASC;
             """)
-            languages_all = [{"label": r[0], "count": r[1]} for r in cur.fetchall()]
-
-            
+            languages_all = [{"label": r[0], "count": r[1]} for r in cur.fetchall() if r[0]]
             languages_top = languages_all[:12]
 
+            # -------------------------
+            # Linguistic levels
+            # -------------------------
             cur.execute(f"""
                 SELECT LOWER(linguistic_level) AS label, COUNT(*) AS count
                 FROM {TABLE_NAME}
@@ -353,8 +356,11 @@ def api_stats():
                 ORDER BY count DESC
                 LIMIT 12;
             """)
-            levels = [{"label": r[0], "count": r[1]} for r in cur.fetchall()]
+            levels = [{"label": r[0], "count": r[1]} for r in cur.fetchall() if r[0]]
 
+            # -------------------------
+            # Genres
+            # -------------------------
             cur.execute(f"""
                 SELECT LOWER(g) AS label, COUNT(*) AS count
                 FROM {TABLE_NAME}
@@ -364,8 +370,11 @@ def api_stats():
                 ORDER BY count DESC
                 LIMIT 14;
             """)
-            genres = [{"label": r[0], "count": r[1]} for r in cur.fetchall()]
+            genres = [{"label": r[0], "count": r[1]} for r in cur.fetchall() if r[0]]
 
+            # -------------------------
+            # Years distribution
+            # -------------------------
             cur.execute(f"""
                 SELECT {YEAR_SQL} AS year, COUNT(*)
                 FROM {TABLE_NAME}
@@ -375,20 +384,45 @@ def api_stats():
             """)
             years = [{"year": r[0], "count": r[1]} for r in cur.fetchall() if r[0]]
 
+            # -------------------------
+            # ✅ NEW: Production countries (from production_countries column)
+            # Handles strings like: "['Italy', 'France']" or "['Egypt']"
+            # -------------------------
+            cur.execute(f"""
+                WITH exploded AS (
+                  SELECT
+                    trim(both '"' from trim(both '''' from trim(x))) AS country
+                  FROM {TABLE_NAME}
+                  CROSS JOIN LATERAL regexp_split_to_table(
+                    regexp_replace(coalesce(production_countries::text, ''), '[\\[\\]\\{{\\}}]', '', 'g'),
+                    '\\s*,\\s*'
+                  ) AS x
+                )
+                SELECT country AS label, COUNT(*) AS count
+                FROM exploded
+                WHERE country IS NOT NULL AND country <> ''
+                GROUP BY 1
+                ORDER BY count DESC, label ASC;
+            """)
+            countries_all = [{"label": r[0], "count": r[1]} for r in cur.fetchall() if r[0]]
+
         payload = {
             "total_movies": int(total),
-            "languages_top": languages_top,   
-            "languages_all": languages_all,  
+            "languages_top": languages_top,
+            "languages_all": languages_all,
             "levels_top": levels,
             "genres_top": genres,
             "years_distribution": years,
+            "countries_all": countries_all, 
         }
 
         c["data"] = payload
         c["ts"] = time.time()
         return jsonify(payload)
+
     finally:
         release_db(conn)
+
 
 # ======================================================
 # API — recommendations (paginated)

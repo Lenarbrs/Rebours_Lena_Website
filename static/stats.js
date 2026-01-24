@@ -4,11 +4,16 @@ const els = {
   themeBtn: $("#themeBtn"),
   totalMovies: $("#totalMovies"),
   statsEmpty: $("#statsEmpty"),
+
   chartLanguages: $("#chartLanguages"),
   chartLevels: $("#chartLevels"),
   chartGenres: $("#chartGenres"),
   chartYears: $("#chartYears"),
+
   mapCountries: $("#mapCountries"),
+
+  // ✅ NEW: the languages list container
+  langList: $("#langList"),
 };
 
 const STORAGE = { theme: "cinelingua.theme" };
@@ -36,6 +41,7 @@ async function boot() {
   if (!data || !Number.isFinite(total) || total <= 0) {
     if (els.statsEmpty) els.statsEmpty.hidden = false;
     destroyChartsAndMap();
+    if (els.langList) els.langList.innerHTML = "";
     return;
   }
   if (els.statsEmpty) els.statsEmpty.hidden = true;
@@ -59,7 +65,10 @@ async function boot() {
     ),
   );
 
-  // countries choropleth
+  // ✅ NEW: render full languages list
+  renderLangList(els.langList, normalizeItems(data.languages_all || []));
+
+  // countries choropleth (NOW uses country NAMES, not ISO2)
   const countriesAll = normalizeItems(data.countries_all || []);
   await makeCountriesChoroplethMap(els.mapCountries, countriesAll);
 }
@@ -131,7 +140,7 @@ function normalizeYearDistribution(input) {
 }
 
 /* -------------------------
-   Charts 
+   Charts
 ------------------------- */
 function baseOptions() {
   return {
@@ -186,23 +195,50 @@ function makeYearHistogram(canvas, pairs) {
   });
 }
 
+/* -------------------------
+   ✅ NEW: All languages list renderer
+------------------------- */
+function renderLangList(container, items) {
+  if (!container) return;
+
+  const list = (items || [])
+    .filter((x) => x.label)
+    .sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0));
+
+  container.innerHTML = `
+    <p class="langlist__meta">${list.length} language(s) • sorted by count</p>
+    <div class="langlist__table">
+      <div class="langrow langrow--head">
+        <div>Language</div>
+        <div style="text-align:right">Count</div>
+      </div>
+      ${list
+        .map(
+          (x) => `
+        <div class="langrow">
+          <div class="langrow__code">${escapeHtml(x.label)}</div>
+          <div class="langrow__count">${Number(x.value || 0)}</div>
+        </div>`,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 /* =========================
    Countries choropleth map
-   - Uses GeoJSON with ISO_A2 codes
-   - Light mode tiles = white-ish (Carto Positron)
+   - NOW matches by COUNTRY NAME (ADMIN/name)
    ========================= */
 
 async function makeCountriesChoroplethMap(container, items) {
   if (!container) return;
 
-  // build {ISO2: count}
+  // build {countryNameKey: count}
   const counts = {};
   for (const it of items || []) {
-    const iso2 = String(it.label || "")
-      .trim()
-      .toUpperCase();
-    if (!iso2) continue;
-    counts[iso2] = (counts[iso2] || 0) + (Number(it.value) || 0);
+    const key = normalizeCountryName(it.label);
+    if (!key) continue;
+    counts[key] = (counts[key] || 0) + (Number(it.value) || 0);
   }
 
   const values = Object.values(counts);
@@ -219,8 +255,7 @@ async function makeCountriesChoroplethMap(container, items) {
     attribution: tileAttribution(),
   }).addTo(map);
 
-  // GeoJSON world countries (ISO_A2)
-  // Dataset generally includes properties like ISO_A2 / ISO2 / id; we handle a few fallbacks.
+  // GeoJSON world countries
   const geojsonUrl =
     "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson";
   const gj = await fetch(geojsonUrl)
@@ -230,35 +265,47 @@ async function makeCountriesChoroplethMap(container, items) {
 
   geoLayer = L.geoJSON(gj, {
     style: (feature) => {
-      const iso = getIso2(feature);
-      const v = iso ? counts[iso] || 0 : 0;
+      const key = featureCountryKey(feature);
+      const v = key ? counts[key] || 0 : 0;
       return countryStyle(v, max);
     },
     onEachFeature: (feature, layer) => {
+      const p = feature?.properties || {};
       const name =
-        feature?.properties?.ADMIN ||
-        feature?.properties?.name ||
-        feature?.properties?.NAME ||
-        "Country";
-      const iso = getIso2(feature);
-      const v = iso ? counts[iso] || 0 : 0;
-      layer.bindTooltip(
-        `<b>${escapeHtml(String(name))}</b>${iso ? ` (${iso})` : ""}<br/>Films: ${v}`,
-        { sticky: true, opacity: 0.95 },
-      );
+        p.ADMIN || p.name || p.NAME || p.NAME_EN || p.formal_en || "Country";
+
+      const key = featureCountryKey(feature);
+      const v = key ? counts[key] || 0 : 0;
+
+      layer.bindTooltip(`<b>${escapeHtml(String(name))}</b><br/>Films: ${v}`, {
+        sticky: true,
+        opacity: 0.95,
+      });
     },
   }).addTo(map);
 }
 
-function getIso2(feature) {
+function normalizeCountryName(s) {
+  const t = String(s || "")
+    .trim()
+    .toLowerCase();
+  if (!t) return null;
+
+  // minimal aliases (add more if needed)
+  const alias = {
+    "united states": "united states of america",
+    usa: "united states of america",
+    uk: "united kingdom",
+  };
+
+  return alias[t] || t;
+}
+
+function featureCountryKey(feature) {
   const p = feature?.properties || {};
-  const iso =
-    p.ISO_A2 || p.ISO2 || p.iso2 || p.ISO_2 || p["ISO3166-1-Alpha-2"] || p.ISO;
-  if (!iso) return null;
-  const s = String(iso).trim().toUpperCase();
-  // Some datasets use "-99" for missing
-  if (!s || s === "-99") return null;
-  return s;
+  const name =
+    p.ADMIN || p.name || p.NAME || p.NAME_EN || p.formal_en || p.BRK_NAME || "";
+  return normalizeCountryName(name);
 }
 
 function countryStyle(v, max) {
@@ -293,7 +340,7 @@ function tileAttribution() {
 }
 
 function escapeHtml(s) {
-  return s
+  return String(s || "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
