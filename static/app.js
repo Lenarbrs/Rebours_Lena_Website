@@ -31,7 +31,7 @@ const els = {
   resetBtn: $("#resetBtn"),
   shuffleBtn: $("#shuffleBtn"),
   linguisticLevel: $("#linguisticLevel"),
-  registerLevel: $("#registerLevel"), // ✅ NEW
+  registerLevel: $("#registerLevel"),
   sortSelect: $("#sortSelect"),
 
   cards: $("#cards"),
@@ -94,7 +94,7 @@ updateCounts();
   await Promise.all([
     hydrateLanguages(),
     hydrateLinguisticLevels(),
-    hydrateRegisterLevels(), // ✅ NEW
+    hydrateRegisterLevels(),
   ]);
 })();
 
@@ -210,7 +210,7 @@ function wireUI() {
       renderTags();
       els.genreInput.value = "";
       els.linguisticLevel.value = "";
-      els.registerLevel.value = ""; // ✅ NEW
+      els.registerLevel.value = "";
       els.minRating.value = "";
       els.maxRuntime.value = "";
       els.yearMin.value = "";
@@ -336,7 +336,7 @@ async function recommendAndRenderFirstPage() {
       lang,
       genres: selectedGenres,
       linguistic_level: normalizeMaybe(els.linguisticLevel.value),
-      linguistic_register: normalizeMaybe(els.registerLevel.value), // ✅ NEW
+      linguistic_register: normalizeMaybe(els.registerLevel.value),
       min_rating: numOrNull(els.minRating.value),
       max_runtime: numOrNull(els.maxRuntime.value),
       year_min: intOrNull(els.yearMin.value),
@@ -385,7 +385,7 @@ async function recommendAndRenderFirstPage() {
 }
 
 /**
- * ✅ FIX: Load more should APPEND only,
+ * Load more should APPEND only,
  * not re-render & re-sort everything (which “reshuffles” what you saw).
  */
 async function fetchMore() {
@@ -410,7 +410,7 @@ async function fetchMore() {
     lastResults = lastResults.concat(newItems);
     currentOffset = lastResults.length;
 
-    // ✅ append cards only (keeps scroll context)
+    // append cards only (keeps scroll context)
     renderCards(newItems, { append: true });
 
     els.resultsMeta.textContent = totalMatches

@@ -8,7 +8,7 @@ const els = {
   chartLevels: $("#chartLevels"),
   chartGenres: $("#chartGenres"),
   chartYears: $("#chartYears"),
-  mapCountries: $("#mapCountries"), // ✅ NEW
+  mapCountries: $("#mapCountries"),
 };
 
 const STORAGE = { theme: "cinelingua.theme" };
@@ -42,7 +42,7 @@ async function boot() {
 
   destroyChartsAndMap();
 
-  // Charts (si tu veux garder)
+  // Charts
   charts.push(
     makeBar(els.chartLanguages, normalizeItems(data.languages_top), "Count"),
   );
@@ -59,7 +59,7 @@ async function boot() {
     ),
   );
 
-  // ✅ NEW: countries choropleth
+  // countries choropleth
   const countriesAll = normalizeItems(data.countries_all || []);
   await makeCountriesChoroplethMap(els.mapCountries, countriesAll);
 }
@@ -131,7 +131,7 @@ function normalizeYearDistribution(input) {
 }
 
 /* -------------------------
-   Charts (unchanged)
+   Charts 
 ------------------------- */
 function baseOptions() {
   return {
@@ -187,7 +187,7 @@ function makeYearHistogram(canvas, pairs) {
 }
 
 /* =========================
-   ✅ Countries choropleth map
+   Countries choropleth map
    - Uses GeoJSON with ISO_A2 codes
    - Light mode tiles = white-ish (Carto Positron)
    ========================= */
@@ -270,8 +270,8 @@ function countryStyle(v, max) {
   // intensity 0..1
   const t = !max ? 0 : Math.sqrt(v / max);
   const fill = themeIsDark()
-    ? `rgba(212,175,55,${0.08 + t * 0.55})` // gold
-    : `rgba(139,0,0,${0.06 + t * 0.45})`; // velvet red
+    ? `rgba(212,175,55,${0.08 + t * 0.55})`
+    : `rgba(139,0,0,${0.06 + t * 0.45})`;
 
   return {
     color: stroke,
@@ -283,7 +283,6 @@ function countryStyle(v, max) {
 }
 
 function tileUrl() {
-  // ✅ Light mode: "white" tiles (Positron)
   return themeIsDark()
     ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
     : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
@@ -310,7 +309,7 @@ function initTheme() {
 function toggleTheme() {
   const cur = document.documentElement.getAttribute("data-theme") || "dark";
   setTheme(cur === "dark" ? "light" : "dark");
-  setTimeout(() => boot(), 0); // redraw map with new tiles/colors
+  setTimeout(() => boot(), 0);
 }
 function setTheme(t) {
   document.documentElement.setAttribute("data-theme", t);

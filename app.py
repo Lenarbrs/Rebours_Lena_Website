@@ -332,7 +332,7 @@ def api_stats():
             cur.execute(f"SELECT COUNT(*) FROM {TABLE_NAME};")
             total = cur.fetchone()[0] or 0
 
-            # ✅ ALL languages (no LIMIT)
+            
             cur.execute(f"""
                 SELECT LOWER(original_language) AS label, COUNT(*) AS count
                 FROM {TABLE_NAME}
@@ -342,7 +342,7 @@ def api_stats():
             """)
             languages_all = [{"label": r[0], "count": r[1]} for r in cur.fetchall()]
 
-            # ✅ TOP languages for chart (keep small)
+            
             languages_top = languages_all[:12]
 
             cur.execute(f"""
@@ -377,8 +377,8 @@ def api_stats():
 
         payload = {
             "total_movies": int(total),
-            "languages_top": languages_top,   # chart
-            "languages_all": languages_all,   # ✅ map + list
+            "languages_top": languages_top,   
+            "languages_all": languages_all,  
             "levels_top": levels,
             "genres_top": genres,
             "years_distribution": years,

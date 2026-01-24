@@ -1277,7 +1277,7 @@ body {
 /* --- Global scale (sans casser tout) --- */
 html {
   font-size: 15px;
-} /* 16px -> 15px (tout un peu plus petit) */
+}
 
 /* --- Navbar plus petite --- */
 .masthead {
@@ -1457,8 +1457,8 @@ html {
 
 /* Dark palette un peu plus “cinema” (fond + panels) */
 [data-theme="dark"] {
-  --bg: #070606; /* plus sombre que #0b0908 */
-  --paper: #14100f; /* cards/panels plus denses */
+  --bg: #070606;
+  --paper: #14100f;
   --paper2: #1a1412;
 
   /* Velvet plus profond */
@@ -1976,7 +1976,7 @@ html {
 }
 
 /* =========================
-   Cinema screen tip (NEW)
+   Cinema screen tip 
    ========================= */
 .screen-tip {
   margin: 0;
@@ -1991,7 +1991,7 @@ html {
 }
 
 /* =========================
-   Count pill in screen header (NEW)
+   Count pill in screen header 
    ========================= */
 .pill--count {
   min-width: 42px;
@@ -2001,7 +2001,7 @@ html {
 }
 
 /* =========================
-   Favorites button emphasis (NEW)
+   Favorites button emphasis 
    ========================= */
 .iconbtn--heart {
   width: 44px;
@@ -2065,11 +2065,11 @@ html {
 .loadmore {
   display: flex;
   flex-direction: column;
-  align-items: center; /* ✅ center horizontally */
+  align-items: center;
   justify-content: center;
   gap: 0.75rem;
   padding: 1.1rem 1.6rem 1.6rem;
-  text-align: center; /* ✅ text centered */
+  text-align: center;
 }
 
 .loadmore__meta {
@@ -2082,7 +2082,7 @@ html {
 
 /* --- Light mode on velvet screen: force readable colors --- */
 [data-theme="light"] .panel--velvet .loadmore__meta {
-  color: rgba(255, 255, 255, 0.95); /* ✅ readable on red */
+  color: rgba(255, 255, 255, 0.95);
   text-shadow: 0 1px 10px rgba(0, 0, 0, 0.35);
 }
 
@@ -2252,11 +2252,11 @@ html {
    ========================= */
 
 .stats-card--wide {
-  grid-column: 1 / -1; /* full width inside stats grid */
+  grid-column: 1 / -1;
 }
 
 .stats-card__body--map {
-  height: 420px; /* un peu plus haut que les charts */
+  height: 420px;
 }
 
 .map {
@@ -2365,7 +2365,7 @@ html {
 
 /* Map container background */
 .map {
-  background: #ffffff; /* ✅ blanc en light mode */
+  background: #ffffff;
 }
 
 [data-theme="dark"] .map {
